@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Airport {
+  id      String @id @default(uuid())
+  code    String @unique           // IATA: SVO, LED, AER
+  name    String                   // Шереметьево, Пулково
+  city    String                   // Москва, Санкт-Петербург
+  country String @default("Россия")
+
+  departureFlights  Flight[] @relation("DepartureAirport")
+  destinationFlights Flight[] @relation("DestinationAirport")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+}
+
+model Flight {
+  id                   String   @id @default(uuid())
+  flightNumber         String   @unique
+  departureAirportId   String
+  departureAirport     Airport  @relation("DepartureAirport", fields: [departureAirportId], references: [id], onDelete: Cascade)
+  destinationAirportId String
+  destinationAirport   Airport  @relation("DestinationAirport", fields: [destinationAirportId], references: [id], onDelete: Cascade)
+  departureTime        DateTime
+  seats                Seat[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([departureTime])
+  @@index([departureAirportId])
+  @@index([destinationAirportId])
+}
+
+model Seat {
+  id         String     @id @default(uuid())
+  flightId   String
+  flight     Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
+  seatNumber String
+  status     SeatStatus @default(AVAILABLE)
+  price      Decimal    @db.Decimal(10, 2)
+  bookings   Booking[]
+  version    Int        @default(1) // Incremented on each status change for optimistic locking fallback
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([flightId, seatNumber])
+  @@index([flightId, status])
+}
+
+enum SeatStatus {
+  AVAILABLE
+  LOCKED
+  BOOKED
+}
+
+model User {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String    // bcrypt hash
+  name      String
+  bookings  Booking[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Booking {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seatId    String
+  seat      Seat          @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  status    BookingStatus @default(PENDING)
+  expiresAt DateTime      // Timeout for payment
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status, expiresAt])
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  FAILED
+}
+
+model OutboxEvent {
+  id         String      @id @default(uuid())
+  type       String      // e.g., 'PAYMENT_REQUESTED'
+  payload    Json
+  status     EventStatus @default(PENDING)
+  retryCount Int         @default(0)
+  error      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  @@index([status, createdAt])
+}
+
+enum EventStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}

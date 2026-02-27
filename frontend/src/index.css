@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  /* ── Surface colors (dark default, overridden in light) ── */
+  --color-dark-900: #0b0d13;
+  --color-dark-800: #111318;
+  --color-dark-700: #191c24;
+  --color-dark-600: #22262f;
+  --color-dark-500: #2d3240;
+
+  /* ── Accent colors (same in both themes) ── */
+  --color-neon-blue: #3b82f6;
+  --color-neon-purple: #8b5cf6;
+  --color-neon-green: #10b981;
+  --color-neon-orange: #f59e0b;
+  --color-neon-red: #ef4444;
+  --color-neon-pink: #ec4899;
+  --color-sky: #38bdf8;
+
+  /* ── Semantic text colors ── */
+  --color-fg: #ffffff;
+  --color-fg-secondary: #e2e8f0;
+  --color-fg-muted: #94a3b8;
+  --color-fg-subtle: #64748b;
+  --color-fg-faint: #475569;
+}
+
+/* ── Light theme overrides ── */
+html.light {
+  --color-dark-900: #f8fafc;
+  --color-dark-800: #f1f5f9;
+  --color-dark-700: #e2e8f0;
+  --color-dark-600: #cbd5e1;
+  --color-dark-500: #94a3b8;
+
+  --color-fg: #0f172a;
+  --color-fg-secondary: #1e293b;
+  --color-fg-muted: #475569;
+  --color-fg-subtle: #64748b;
+  --color-fg-faint: #94a3b8;
+}
+
+body {
+  background-color: var(--color-dark-900);
+  color: var(--color-fg-secondary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-dark-800);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-dark-500);
+  border-radius: 3px;
+}
+
+/* Seat statuses */
+.seat-available {
+  @apply bg-dark-600 border border-dark-500 hover:border-sky hover:bg-dark-500 cursor-pointer transition-all duration-200;
+}
+.seat-available:hover {
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+.seat-locked {
+  @apply bg-neon-orange/15 border border-neon-orange/40 cursor-not-allowed;
+}
+.seat-booked {
+  @apply bg-dark-700 border border-dark-600 cursor-not-allowed opacity-50;
+}
+.seat-selected {
+  @apply bg-neon-blue/25 border-2 border-neon-blue;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.3);
+}
+
+/* Light-mode shadow softener */
+html.light .shadow-2xl {
+  --tw-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+}
+
+/* Smooth scroll */
+html { scroll-behavior: smooth; }
+
+/* Date input fix */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+}
+html.light input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
