@@ -60,12 +60,12 @@ export default function HomePage() {
 
           {/* Search form */}
           <div className="relative z-10 bg-dark-800/90 backdrop-blur-sm border border-dark-600 rounded-2xl p-4 md:p-6 shadow-2xl shadow-black/20">
-            <div className="flex flex-col md:flex-row gap-3 items-end">
+            <div className="flex flex-col md:flex-row gap-3 md:items-end items-stretch w-full">
               <CityInput label="Откуда" placeholder="Город вылета" value={from} onChange={setFrom} />
 
               <button
                 onClick={handleSwap}
-                className="p-3 bg-dark-700 border border-dark-500 rounded-lg hover:border-sky hover:bg-dark-600 transition-all group self-end"
+                className="p-3 bg-dark-700 border border-dark-500 rounded-lg hover:border-sky hover:bg-dark-600 transition-all group md:self-end self-center md:rotate-0 rotate-90 my-1 md:my-0 focus:outline-none"
                 title="Поменять местами"
               >
                 <ArrowRightLeft className="w-4 h-4 text-fg-muted group-hover:text-sky transition-colors" />
@@ -80,7 +80,7 @@ export default function HomePage() {
 
               <button
                 onClick={handleSearch}
-                className="px-8 py-3 bg-neon-blue text-white font-semibold rounded-lg hover:bg-neon-blue/90 hover:shadow-lg hover:shadow-neon-blue/20 transition-all flex items-center gap-2 whitespace-nowrap"
+                className="px-8 py-3 bg-neon-blue text-white font-semibold rounded-lg hover:bg-neon-blue/90 hover:shadow-lg hover:shadow-neon-blue/20 transition-all flex items-center justify-center gap-2 whitespace-nowrap md:w-auto w-full mt-2 md:mt-0"
               >
                 <Search className="w-4 h-4" />
                 Найти
@@ -110,9 +110,9 @@ export default function HomePage() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
               <div className="relative h-full flex flex-col justify-end p-4">
                 <p className="text-sm text-white font-semibold drop-shadow-lg">{route.label}</p>
-                <div className="flex items-center gap-1 text-[11px] text-white/70 mt-0.5">
+                <div className="flex flex-wrap items-center gap-x-1 gap-y-0 text-[11px] text-white/70 mt-0.5">
                   <span>{route.from.split(' (')[0]}</span>
-                  <ChevronRight className="w-3 h-3" />
+                  <ChevronRight className="w-3 h-3 flex-shrink-0" />
                   <span>{route.to.split(' (')[0]}</span>
                 </div>
                 <p className="text-xs text-sky font-semibold mt-1.5 drop-shadow-lg">{route.price}</p>

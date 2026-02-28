@@ -44,13 +44,13 @@ const generalLimiter = rateLimit({
   message: { status: 'error', message: 'Too many requests. Please try again later.' },
 });
 
-// Strict rate limit for booking mutations: 10 per minute per IP
-const bookingLimiter = rateLimit({
+// Auth rate limit: 5 attempts per minute per IP (brute-force protection)
+const authLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 10,
+  limit: 5,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  message: { status: 'error', message: 'Too many booking attempts. Please wait a moment.' },
+  message: { status: 'error', message: 'Too many authentication attempts. Please wait a moment.' },
 });
 
 // ── Routes ───────────────────────────────────────────────
@@ -63,16 +63,16 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
-app.use('/api/auth', generalLimiter, authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/flights', generalLimiter, flightRoutes);
-app.use('/api/bookings', bookingLimiter, bookingRoutes);
+app.use('/api/bookings', generalLimiter, bookingRoutes);
 app.use('/api/cities', generalLimiter, cityRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
 
 // Start server
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`\n🚀 Server is running on http://localhost:${port}`);
   console.log(`📋 API endpoints:`);
   console.log(`   GET  /api/health`);
@@ -102,11 +102,14 @@ app.listen(port, () => {
 
   console.log(`⏰ Expired bookings cleanup: every ${CLEANUP_INTERVAL_MS / 1000}s`);
 
-  // Graceful shutdown
+  // Graceful shutdown — close HTTP server first, then cleanup
   const shutdown = async () => {
     console.log('\n🛑 Shutting down gracefully...');
     clearInterval(cleanupInterval);
     clearInterval(outboxInterval);
+    server.close(() => {
+      console.log('🔒 HTTP server closed');
+    });
     await prisma.$disconnect();
     process.exit(0);
   };

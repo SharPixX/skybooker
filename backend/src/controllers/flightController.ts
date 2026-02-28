@@ -40,9 +40,10 @@ export async function searchFlights(req: Request, res: Response, next: NextFunct
       where.destinationAirport = buildAirportFilter(to);
     }
     if (date) {
-      const searchDate = new Date(date);
-      const nextDay = new Date(searchDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      // Use explicit UTC to avoid timezone bugs on non-UTC servers
+      const searchDate = new Date(date + 'T00:00:00.000Z');
+      const nextDay = new Date(date + 'T00:00:00.000Z');
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
       where.departureTime = { gte: searchDate, lt: nextDay };
     }
 

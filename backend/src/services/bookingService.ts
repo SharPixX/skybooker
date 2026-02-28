@@ -129,9 +129,14 @@ export async function bookSeat(userId: string, seatId: string) {
  */
 export async function confirmBooking(bookingId: string, requestUserId: string) {
   return prisma.$transaction(async (tx) => {
-    const booking = await tx.booking.findUnique({
-      where: { id: bookingId },
-    });
+    // Pessimistic lock: SELECT FOR UPDATE prevents race conditions
+    // between concurrent confirm/cancel/outbox-worker operations
+    const bookings = await tx.$queryRaw<Array<{ id: string; userId: string; seatId: string; status: string; expiresAt: Date }>>`
+      SELECT id, "userId", "seatId", status, "expiresAt" FROM "Booking"
+      WHERE id = ${bookingId}
+      FOR UPDATE
+    `;
+    const booking = bookings[0] || null;
 
     if (!booking) {
       throw new AppError('Booking not found', 404);
@@ -182,9 +187,13 @@ export async function confirmBooking(bookingId: string, requestUserId: string) {
  */
 export async function cancelBooking(bookingId: string, requestUserId: string) {
   return prisma.$transaction(async (tx) => {
-    const booking = await tx.booking.findUnique({
-      where: { id: bookingId },
-    });
+    // Pessimistic lock: SELECT FOR UPDATE prevents race with outbox worker
+    const bookings = await tx.$queryRaw<Array<{ id: string; userId: string; seatId: string; status: string }>>`
+      SELECT id, "userId", "seatId", status FROM "Booking"
+      WHERE id = ${bookingId}
+      FOR UPDATE
+    `;
+    const booking = bookings[0] || null;
 
     if (!booking) {
       throw new AppError('Booking not found', 404);
@@ -195,8 +204,14 @@ export async function cancelBooking(bookingId: string, requestUserId: string) {
       throw new AppError('Access denied. This booking belongs to another user.', 403);
     }
 
-    if (booking.status === 'CANCELLED') {
-      throw new AppError('Booking is already cancelled', 400);
+    // Only PENDING bookings can be cancelled (CONFIRMED requires refund flow)
+    if (booking.status !== 'PENDING') {
+      throw new AppError(
+        booking.status === 'CANCELLED'
+          ? 'Booking is already cancelled'
+          : `Cannot cancel a ${booking.status.toLowerCase()} booking`,
+        400
+      );
     }
 
     // Release the seat

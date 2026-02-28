@@ -4,8 +4,17 @@ import prisma from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
 
 const SALT_ROUNDS = 10;
-const JWT_SECRET = process.env.JWT_SECRET || 'skybooker-dev-secret-change-in-production';
 const JWT_EXPIRES_IN = '7d';
+
+// SECURITY: In production, JWT_SECRET MUST be set via environment variable.
+// Fail fast on startup if missing in production to prevent token forgery.
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret && process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET environment variable is not set in production!');
+  }
+  return secret || 'skybooker-dev-secret-change-in-production';
+})();
 
 export interface JwtPayload {
   userId: string;
@@ -18,7 +27,7 @@ function signToken(payload: JwtPayload): string {
 
 export function verifyToken(token: string): JwtPayload {
   try {
-    return jwt.verify(token, JWT_SECRET) as JwtPayload;
+    return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
   } catch {
     throw new AppError('Invalid or expired token', 401);
   }
@@ -31,7 +40,7 @@ export async function register(email: string, password: string, name: string) {
   // Check if user already exists
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    throw new AppError('User with this email already exists', 409);
+    throw new AppError('Registration failed. Please try a different email.', 409);
   }
 
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);

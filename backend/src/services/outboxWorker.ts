@@ -43,6 +43,7 @@ interface PaymentPayload {
 const MAX_RETRIES = 3;
 const POLL_INTERVAL_MS = 5000; // 5 seconds
 const MAX_EVENTS_PER_CYCLE = 10;
+const PROCESSING_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes — stuck PROCESSING recovery
 
 /**
  * Simulate a payment gateway call.
@@ -122,7 +123,23 @@ async function processEvent(eventId: string): Promise<void> {
 
       if (result.success) {
         // Payment succeeded — confirm the booking atomically
+        // CRITICAL: Check booking is still PENDING before confirming
+        // (it may have been cancelled or expired while payment was processing)
         await prisma.$transaction(async (tx) => {
+          const booking = await tx.$queryRaw<Array<{ status: string }>>`
+            SELECT status FROM "Booking" WHERE id = ${payload.bookingId} FOR UPDATE
+          `;
+
+          if (!booking[0] || booking[0].status !== 'PENDING') {
+            // Booking was cancelled/expired — mark event as completed (stale)
+            await tx.outboxEvent.update({
+              where: { id: eventId },
+              data: { status: 'COMPLETED', error: `Booking no longer PENDING (was ${booking[0]?.status || 'missing'}). Payment ignored.` },
+            });
+            console.log(`[Outbox] ⚠️ Booking ${payload.bookingId} is ${booking[0]?.status || 'missing'} — skipping confirmation`);
+            return;
+          }
+
           await tx.outboxEvent.update({
             where: { id: eventId },
             data: { status: 'COMPLETED' },
@@ -144,6 +161,16 @@ async function processEvent(eventId: string): Promise<void> {
       } else {
         throw new Error(result.error || 'Payment failed');
       }
+    } else {
+      // Unknown event type — fail immediately to avoid stuck PROCESSING
+      await prisma.outboxEvent.update({
+        where: { id: eventId },
+        data: {
+          status: 'FAILED',
+          error: `Unknown event type: ${event.type}`,
+        },
+      });
+      console.error(`[Outbox] ❌ Unknown event type "${event.type}" — marked as FAILED`);
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -198,11 +225,39 @@ async function processEvent(eventId: string): Promise<void> {
  * and processes them sequentially. Safe to run on multiple instances.
  * Returns the interval ID for graceful shutdown.
  */
+/**
+ * Recovery sweep: reset stuck PROCESSING events back to PENDING.
+ * This handles the case where the worker crashes mid-processing.
+ * Events stuck in PROCESSING for > PROCESSING_TIMEOUT_MS are recovered.
+ */
+async function recoverStuckEvents(): Promise<void> {
+  const cutoff = new Date(Date.now() - PROCESSING_TIMEOUT_MS);
+  const result = await prisma.outboxEvent.updateMany({
+    where: {
+      status: 'PROCESSING',
+      updatedAt: { lt: cutoff },
+    },
+    data: {
+      status: 'PENDING',
+      error: 'Recovered from stuck PROCESSING state (worker crash/timeout)',
+    },
+  });
+  if (result.count > 0) {
+    console.log(`[Outbox] 🔧 Recovered ${result.count} stuck PROCESSING event(s)`);
+  }
+}
+
 export function startOutboxWorker(): ReturnType<typeof setInterval> {
   console.log(`[Outbox] Worker started. Polling every ${POLL_INTERVAL_MS / 1000}s...`);
 
+  // Run recovery on startup for any events stuck from a previous crash
+  recoverStuckEvents().catch((err) => console.error('[Outbox] Recovery error:', err));
+
   return setInterval(async () => {
     try {
+      // Periodically recover stuck events
+      await recoverStuckEvents();
+
       const claimedIds = await claimPendingEvents();
 
       if (claimedIds.length > 0) {

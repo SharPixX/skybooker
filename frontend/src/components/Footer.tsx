@@ -10,7 +10,7 @@ export default function Footer() {
             <Plane className="w-3.5 h-3.5 text-sky -rotate-45" />
             <span className="text-sm font-semibold text-fg">SkyBooker</span>
           </Link>
-          <nav className="flex gap-6 text-xs text-fg-subtle">
+          <nav className="flex flex-wrap justify-center gap-4 md:gap-6 text-xs text-fg-subtle">
             <Link to="/about" className="hover:text-fg-secondary transition-colors">О компании</Link>
             <Link to="/help" className="hover:text-fg-secondary transition-colors">Помощь</Link>
             <Link to="/legal" className="hover:text-fg-secondary transition-colors">Правовая информация</Link>

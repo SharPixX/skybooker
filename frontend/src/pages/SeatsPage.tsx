@@ -166,9 +166,10 @@ export default function SeatsPage() {
           </div>
 
           {/* Airplane */}
-          <div className="bg-dark-800 border border-dark-600 rounded-2xl p-5">
-            {/* Column headers */}
-            <div className="flex justify-center gap-1 mb-3 text-[10px] text-fg-subtle font-mono uppercase">
+          <div className="bg-dark-800 border border-dark-600 rounded-2xl p-5 overflow-x-auto overflow-y-hidden">
+            <div className="min-w-fit mx-auto">
+              {/* Column headers */}
+              <div className="flex justify-center gap-1 mb-3 text-[10px] text-fg-subtle font-mono uppercase">
               {['A', 'B', 'C', '', 'D', 'E', 'F'].map((letter, i) => (
                 <div key={i} className={`flex items-center justify-center ${letter === '' ? 'w-7' : 'w-10 h-5'}`}>
                   {letter}
@@ -206,6 +207,7 @@ export default function SeatsPage() {
                 ))}
               </div>
             ))}
+            </div>
           </div>
         </div>
 

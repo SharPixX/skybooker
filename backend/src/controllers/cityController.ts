@@ -20,6 +20,7 @@ export async function searchCities(req: Request, res: Response, next: NextFuncti
         ],
       },
       orderBy: { city: 'asc' },
+      take: 20, // Limit results to prevent unbounded queries
     });
 
     const cities = airports.map((a) => ({
