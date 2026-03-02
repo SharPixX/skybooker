@@ -81,3 +81,13 @@ export async function cancelBooking(id: string): Promise<Booking> {
   const { data } = await api.post<ApiResponse<Booking>>(`/bookings/${id}/cancel`);
   return data.data;
 }
+
+export async function updateProfileApi(name: string) {
+  const { data } = await api.put<ApiResponse<{ id: string; email: string; name: string; createdAt: string }>>('/auth/profile', { name });
+  return data.data;
+}
+
+export async function updatePasswordApi(oldPassword: string, newPassword: string) {
+  const { data } = await api.put<ApiResponse<null>>('/auth/password', { oldPassword, newPassword });
+  return data.data;
+}

@@ -6,6 +6,7 @@ import FlightsPage from './pages/FlightsPage';
 import SeatsPage from './pages/SeatsPage';
 import BookingPage from './pages/BookingPage';
 import AuthPage from './pages/AuthPage';
+import ProfilePage from './pages/ProfilePage';
 import AboutPage from './pages/AboutPage';
 import HelpPage from './pages/HelpPage';
 import LegalPage from './pages/LegalPage';
@@ -23,6 +24,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<HomePage />} />
                 <Route path="/auth" element={<AuthPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/flights" element={<FlightsPage />} />
                 <Route path="/flights/:id/seats" element={<SeatsPage />} />
                 <Route path="/booking/:id" element={<BookingPage />} />

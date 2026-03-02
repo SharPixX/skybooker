@@ -8,14 +8,14 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row justify-between items-center gap-3">
           <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <Plane className="w-3.5 h-3.5 text-sky -rotate-45" />
-            <span className="text-sm font-semibold text-fg">SkyBooker</span>
+            <span className="text-sm font-semibold tracking-tight">Lidar<span className="text-sky">Air</span></span>
           </Link>
           <nav className="flex flex-wrap justify-center gap-4 md:gap-6 text-xs text-fg-subtle">
             <Link to="/about" className="hover:text-fg-secondary transition-colors">О компании</Link>
             <Link to="/help" className="hover:text-fg-secondary transition-colors">Помощь</Link>
             <Link to="/legal" className="hover:text-fg-secondary transition-colors">Правовая информация</Link>
           </nav>
-          <p className="text-xs text-fg-faint">© 2026 SkyBooker</p>
+          <p className="text-xs text-fg-faint">© 2026 LidarAir</p>
         </div>
       </div>
     </footer>

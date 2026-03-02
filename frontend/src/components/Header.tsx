@@ -1,19 +1,13 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Plane, Search, LogIn, LogOut, User, Sun, Moon } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Plane, Search, LogIn, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
 export default function Header() {
   const location = useLocation();
-  const navigate = useNavigate();
   const isHome = location.pathname === '/';
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { theme, toggleTheme } = useTheme();
-
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
 
   return (
     <header className="bg-dark-800/80 backdrop-blur-md border-b border-dark-600 sticky top-0 z-50">
@@ -23,7 +17,7 @@ export default function Header() {
             <Plane className="w-4 h-4 text-white -rotate-45" />
           </div>
           <span className="text-lg font-bold text-fg">
-            Sky<span className="text-sky">Booker</span>
+            Lidar<span className="text-sky">Air</span>
           </span>
         </Link>
 
@@ -48,19 +42,17 @@ export default function Header() {
           </button>
 
           {isAuthenticated ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 text-sm text-fg-muted">
-                <User className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline max-w-[120px] truncate">{user?.name}</span>
+            <Link
+              to="/profile"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-700 hover:bg-dark-600 border border-dark-600 hover:border-sky/50 transition-all group"
+            >
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-neon-blue to-sky flex items-center justify-center text-xs text-white font-bold shadow-[0_0_10px_rgba(0,195,255,0.2)]">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
               </div>
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-1.5 text-sm text-fg-subtle hover:text-neon-red transition-colors"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Выйти</span>
-              </button>
-            </div>
+              <span className="hidden sm:inline text-sm font-medium text-fg group-hover:text-white transition-colors max-w-[120px] truncate">
+                Личный кабинет
+              </span>
+            </Link>
           ) : (
             <Link
               to="/auth"

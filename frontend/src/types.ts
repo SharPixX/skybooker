@@ -18,6 +18,9 @@ export interface Seat {
   seatNumber: string;
   status: 'AVAILABLE' | 'LOCKED' | 'BOOKED';
   price: string;
+  class?: string;
+  row?: number;
+  letter?: string;
   flightId?: string;
   version?: number;
 }
@@ -30,10 +33,18 @@ export interface Flight {
   departureAirportId?: string;
   destinationAirportId?: string;
   departureTime: string;
+  arrivalTime?: string;
+  aircraftType?: string;
   seats?: Seat[];
   availableSeats?: number;
   totalSeats?: number;
   minPrice?: number | null;
+  minEconomyPrice?: number | null;
+  standardPrice?: number | null;
+  minBusinessPrice?: number | null;
+  economySeatsAvail?: number;
+  businessSeatsAvail?: number;
+  durationMinutes?: number | null;
 }
 
 export interface Pagination {

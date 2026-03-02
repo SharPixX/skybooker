@@ -56,7 +56,7 @@ export async function searchFlights(req: Request, res: Response, next: NextFunct
           departureAirport: true,
           destinationAirport: true,
           seats: {
-            select: { status: true, price: true },
+            select: { status: true, price: true, class: true },
           },
         },
         orderBy: { departureTime: 'asc' },
@@ -66,15 +66,42 @@ export async function searchFlights(req: Request, res: Response, next: NextFunct
       prisma.flight.count({ where }),
     ]);
 
-    // Compute aggregates and strip the raw seat array from the response
+    // Compute aggregates with per-class pricing and strip the raw seat array
     const result = flights.map(({ seats, ...flight }) => {
       const available = seats.filter((s) => s.status === 'AVAILABLE');
-      const prices = available.map((s) => parseFloat(String(s.price)));
+      const economyAvail = available.filter((s) => s.class === 'economy');
+      const businessAvail = available.filter((s) => s.class === 'business');
+
+      const economyPrices = economyAvail.map((s) => parseFloat(String(s.price)));
+      const businessPrices = businessAvail.map((s) => parseFloat(String(s.price)));
+
+      const minEconomy = economyPrices.length > 0 ? Math.min(...economyPrices) : null;
+      const minBusiness = businessPrices.length > 0 ? Math.min(...businessPrices) : null;
+      // "Standard" tier = median economy price (economy with extras)
+      const sortedEconomy = [...economyPrices].sort((a, b) => a - b);
+      const medianEconomy = sortedEconomy.length > 0
+        ? sortedEconomy[Math.floor(sortedEconomy.length * 0.6)]
+        : null;
+
+      // Duration in minutes
+      let durationMinutes: number | null = null;
+      if (flight.arrivalTime && flight.departureTime) {
+        durationMinutes = Math.round(
+          (new Date(flight.arrivalTime).getTime() - new Date(flight.departureTime).getTime()) / 60000
+        );
+      }
+
       return {
         ...flight,
         availableSeats: available.length,
         totalSeats: seats.length,
-        minPrice: prices.length > 0 ? Math.min(...prices) : null,
+        minPrice: economyPrices.length > 0 ? Math.min(...economyPrices) : (businessPrices.length > 0 ? Math.min(...businessPrices) : null),
+        minEconomyPrice: minEconomy,
+        standardPrice: medianEconomy,
+        minBusinessPrice: minBusiness,
+        economySeatsAvail: economyAvail.length,
+        businessSeatsAvail: businessAvail.length,
+        durationMinutes,
       };
     });
 

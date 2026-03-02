@@ -30,11 +30,13 @@ model Airport {
 model Flight {
   id                   String   @id @default(uuid())
   flightNumber         String   @unique
+  aircraftType         String   @default("Boeing 737-800") // Boeing 737-800, Boeing 777-300
   departureAirportId   String
   departureAirport     Airport  @relation("DepartureAirport", fields: [departureAirportId], references: [id], onDelete: Cascade)
   destinationAirportId String
   destinationAirport   Airport  @relation("DestinationAirport", fields: [destinationAirportId], references: [id], onDelete: Cascade)
   departureTime        DateTime
+  arrivalTime          DateTime?
   seats                Seat[]
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -49,6 +51,9 @@ model Seat {
   flightId   String
   flight     Flight     @relation(fields: [flightId], references: [id], onDelete: Cascade)
   seatNumber String
+  class      String     @default("economy") // "business" or "economy"
+  row        Int        @default(1)
+  letter     String     @default("A")
   status     SeatStatus @default(AVAILABLE)
   price      Decimal    @db.Decimal(10, 2)
   bookings   Booking[]
@@ -58,6 +63,7 @@ model Seat {
 
   @@unique([flightId, seatNumber])
   @@index([flightId, status])
+  @@index([flightId, class])
 }
 
 enum SeatStatus {

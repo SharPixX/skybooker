@@ -130,24 +130,29 @@ export const DatePicker: React.FC<DatePickerProps> = ({ value, onChange }) => {
     : null;
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full flex-1 h-full min-w-[200px]">
       <div
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full pl-10 pr-4 py-3 bg-dark-700 border border-dark-500 rounded-lg text-fg cursor-pointer flex items-center justify-between hover:border-dark-400 transition-all"
+        className="group relative flex items-center h-16 w-full px-5 rounded-[1.25rem] bg-[#090C15]/50 hover:bg-[#090C15]/80 border border-white/5 hover:border-white/10 focus-within:!border-sky/50 focus-within:!bg-[#090C15] transition-all duration-300 cursor-pointer"
       >
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-fg-subtle" />
-          <span className={value ? 'text-fg' : 'text-fg-muted'}>
+        <CalendarIcon className="w-5 h-5 text-[#4E5466] group-hover:text-sky transition-colors flex-shrink-0" />
+        
+        <div className="flex flex-col flex-1 pl-4 h-full justify-center min-w-0">
+          <label className="text-[10px] text-[#4E5466] uppercase tracking-[0.1em] font-bold mb-0.5 group-hover:text-sky transition-colors cursor-pointer select-none text-left">
+            Дата вылета
+          </label>
+          <span className={`text-base font-medium leading-none pb-0.5 truncate text-left ${value ? 'text-white' : 'text-[#4E5466]'}`}>
             {value ? format(new Date(value), 'd MMMM, EEE', { locale: ru }) : 'Выберите дату'}
           </span>
         </div>
+
         {value && (
           <button
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
-            className="p-1 hover:bg-dark-600 rounded-full text-fg-muted hover:text-fg transition-colors"
+            className="p-1.5 ml-2 hover:bg-white/10 rounded-full text-fg-muted hover:text-white transition-all flex-shrink-0"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>

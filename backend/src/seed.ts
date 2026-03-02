@@ -141,9 +141,31 @@ async function seed() {
 
   // ── Helpers ────────────────────────────────────────────────
 
-  // Fixed dates: Feb 25 – Mar 1, 2026
+  // Dates: March 3 – March 20, 2026 (future dates)
   function fixedDate(month: number, day: number, hour: number, minute = 0): Date {
     return new Date(Date.UTC(2026, month - 1, day, hour, minute, 0, 0));
+  }
+
+  /** Estimate flight duration in minutes based on from/to codes */
+  function estimateDuration(from: string, to: string): number {
+    const farEast = new Set(['VVO', 'KHV', 'YKS', 'PKC', 'UUS', 'GDX', 'BQS']);
+    const siberia = new Set(['OVB', 'OMS', 'TJM', 'TOF', 'BAX', 'KEJ', 'NOZ', 'SGC', 'NJC', 'NYA', 'NOJ', 'HMA', 'NYM', 'SLY', 'NSK', 'KJA', 'IKT', 'UUD', 'HTA', 'BTK', 'ABK', 'KYZ']);
+    const ural = new Set(['SVX', 'CEK', 'PEE', 'MQF', 'KRO']);
+    const intl = new Set(['IST', 'AYT', 'DXB', 'AUH', 'BKK', 'HKT', 'MLE', 'PEK', 'HRG', 'SSH']);
+    const cis = new Set(['ALA', 'TSE', 'TAS', 'EVN', 'GYD', 'MSQ', 'FRU', 'DYU']);
+
+    if (intl.has(from) || intl.has(to)) {
+      // International: 3.5h-11h
+      if (['BKK', 'HKT', 'MLE', 'PEK'].includes(from) || ['BKK', 'HKT', 'MLE', 'PEK'].includes(to)) return 540 + Math.floor(Math.random() * 120); // 9-11h
+      if (['DXB', 'AUH', 'HRG', 'SSH'].includes(from) || ['DXB', 'AUH', 'HRG', 'SSH'].includes(to)) return 300 + Math.floor(Math.random() * 60); // 5-6h
+      return 210 + Math.floor(Math.random() * 60); // IST, AYT: 3.5-4.5h
+    }
+    if (cis.has(from) || cis.has(to)) return 180 + Math.floor(Math.random() * 120); // 3-5h
+    if ((farEast.has(from) || farEast.has(to)) && !(farEast.has(from) && farEast.has(to))) return 480 + Math.floor(Math.random() * 120); // 8-10h
+    if ((siberia.has(from) || siberia.has(to)) && !(siberia.has(from) && siberia.has(to))) return 240 + Math.floor(Math.random() * 60); // 4-5h
+    if ((ural.has(from) || ural.has(to)) && !(ural.has(from) && ural.has(to))) return 150 + Math.floor(Math.random() * 60); // 2.5-3.5h
+    // Short domestic
+    return 90 + Math.floor(Math.random() * 90); // 1.5-3h
   }
 
   // All Russian airport codes (to ensure every city has flights)
@@ -165,93 +187,90 @@ async function seed() {
     return `${airline}-${num}`;
   }
 
-  const flightData: Array<{ number: string; from: string; to: string; date: Date }> = [];
+  const flightData: Array<{ number: string; from: string; to: string; date: Date; arrivalDate: Date }> = [];
 
-  // ── 1) Every Russian city → Moscow hub + LED, every day Feb 25–Mar 1 ──
+  // Helper to push flight with auto-calculated arrival
+  function addFlight(number: string, from: string, to: string, date: Date) {
+    const durationMs = estimateDuration(from, to) * 60 * 1000;
+    const arrivalDate = new Date(date.getTime() + durationMs);
+    flightData.push({ number, from, to, date, arrivalDate });
+  }
+
+  // ── 1) Every Russian city → Moscow hub + LED, Mar 3–14 ──
   const moscowHubs = ['SVO', 'DME', 'VKO'];
 
   for (const code of russianCodes) {
-    if (hubs.includes(code)) continue; // hubs will be covered separately
+    if (hubs.includes(code)) continue;
 
     const idx = russianCodes.indexOf(code);
 
-    for (let day = 25; day <= 28; day++) {
-      // Always connect to a Moscow hub (rotate between SVO/DME/VKO per day)
+    for (let day = 3; day <= 14; day++) {
       const mowHub = moscowHubs[(day + idx) % moscowHubs.length];
-      const hour = 5 + ((day * 3 + idx * 7) % 17); // 5:00–21:59
+      const hour = 5 + ((day * 3 + idx * 7) % 17);
       const minute = (idx * 13) % 60;
 
-      // city → Moscow hub
-      flightData.push({ number: nextFlightNum(), from: code, to: mowHub, date: fixedDate(2, day, hour, minute) });
-      // Moscow hub → city
-      flightData.push({ number: nextFlightNum(), from: mowHub, to: code, date: fixedDate(2, day, (hour + 4) % 24, minute) });
+      addFlight(nextFlightNum(), code, mowHub, fixedDate(3, day, hour, minute));
+      addFlight(nextFlightNum(), mowHub, code, fixedDate(3, day, (hour + 4) % 24, minute));
 
-      // Every other day, also connect to LED (if city is not in Moscow)
       if (day % 2 === 0) {
         const ledHour = 6 + (idx * 3) % 16;
-        flightData.push({ number: nextFlightNum(), from: code, to: 'LED', date: fixedDate(2, day, ledHour, 0) });
-        flightData.push({ number: nextFlightNum(), from: 'LED', to: code, date: fixedDate(2, day, (ledHour + 5) % 24, 30) });
+        addFlight(nextFlightNum(), code, 'LED', fixedDate(3, day, ledHour, 0));
+        addFlight(nextFlightNum(), 'LED', code, fixedDate(3, day, (ledHour + 5) % 24, 30));
       }
     }
-    // March 1
-    {
+    // Mar 15-20
+    for (let day = 15; day <= 20; day++) {
       const mowHub = moscowHubs[idx % moscowHubs.length];
-      const hour = 6 + (idx * 5) % 16;
-      flightData.push({ number: nextFlightNum(), from: code, to: mowHub, date: fixedDate(3, 1, hour, 0) });
-      flightData.push({ number: nextFlightNum(), from: mowHub, to: code, date: fixedDate(3, 1, (hour + 5) % 24, 30) });
+      const hour = 6 + (idx * 5 + day) % 16;
+      addFlight(nextFlightNum(), code, mowHub, fixedDate(3, day, hour, 0));
+      addFlight(nextFlightNum(), mowHub, code, fixedDate(3, day, (hour + 5) % 24, 30));
     }
   }
 
   // ── 2) Hub-to-hub flights: MOW↔LED every day ──
-  for (let day = 25; day <= 28; day++) {
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'LED', date: fixedDate(2, day, 7, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'LED', date: fixedDate(2, day, 14, 30) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'LED', date: fixedDate(2, day, 21, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'LED', to: 'SVO', date: fixedDate(2, day, 8, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'LED', to: 'SVO', date: fixedDate(2, day, 15, 30) });
-    flightData.push({ number: nextFlightNum(), from: 'LED', to: 'SVO', date: fixedDate(2, day, 22, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'DME', to: 'LED', date: fixedDate(2, day, 9, 45) });
-    flightData.push({ number: nextFlightNum(), from: 'LED', to: 'DME', date: fixedDate(2, day, 12, 15) });
-    flightData.push({ number: nextFlightNum(), from: 'VKO', to: 'LED', date: fixedDate(2, day, 11, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'LED', to: 'VKO', date: fixedDate(2, day, 18, 0) });
-  }
-  // March 1
-  flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'LED', date: fixedDate(3, 1, 7, 0) });
-  flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'LED', date: fixedDate(3, 1, 14, 0) });
-  flightData.push({ number: nextFlightNum(), from: 'LED', to: 'SVO', date: fixedDate(3, 1, 8, 0) });
-  flightData.push({ number: nextFlightNum(), from: 'LED', to: 'SVO', date: fixedDate(3, 1, 16, 0) });
-
-  // ── 3) Moscow hubs cross-routes + popular southern routes ──
-  for (let day = 25; day <= 28; day++) {
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'AER', date: fixedDate(2, day, 6, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'AER', date: fixedDate(2, day, 12, 30) });
-    flightData.push({ number: nextFlightNum(), from: 'AER', to: 'SVO', date: fixedDate(2, day, 16, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'KRR', date: fixedDate(2, day, 8, 15) });
-    flightData.push({ number: nextFlightNum(), from: 'KRR', to: 'SVO', date: fixedDate(2, day, 17, 30) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'MRV', date: fixedDate(2, day, 10, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'SIP', date: fixedDate(2, day, 13, 45) });
-    flightData.push({ number: nextFlightNum(), from: 'SIP', to: 'SVO', date: fixedDate(2, day, 19, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'LED', to: 'AER', date: fixedDate(2, day, 9, 0) });
-    flightData.push({ number: nextFlightNum(), from: 'AER', to: 'LED', date: fixedDate(2, day, 20, 30) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'KGD', date: fixedDate(2, day, 11, 15) });
-    flightData.push({ number: nextFlightNum(), from: 'KGD', to: 'SVO', date: fixedDate(2, day, 18, 45) });
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: 'AAQ', date: fixedDate(2, day, 7, 30) });
-    flightData.push({ number: nextFlightNum(), from: 'AAQ', to: 'SVO', date: fixedDate(2, day, 15, 0) });
+  for (let day = 3; day <= 20; day++) {
+    addFlight(nextFlightNum(), 'SVO', 'LED', fixedDate(3, day, 7, 0));
+    addFlight(nextFlightNum(), 'SVO', 'LED', fixedDate(3, day, 14, 30));
+    addFlight(nextFlightNum(), 'SVO', 'LED', fixedDate(3, day, 21, 0));
+    addFlight(nextFlightNum(), 'LED', 'SVO', fixedDate(3, day, 8, 0));
+    addFlight(nextFlightNum(), 'LED', 'SVO', fixedDate(3, day, 15, 30));
+    addFlight(nextFlightNum(), 'LED', 'SVO', fixedDate(3, day, 22, 0));
+    addFlight(nextFlightNum(), 'DME', 'LED', fixedDate(3, day, 9, 45));
+    addFlight(nextFlightNum(), 'LED', 'DME', fixedDate(3, day, 12, 15));
+    addFlight(nextFlightNum(), 'VKO', 'LED', fixedDate(3, day, 11, 0));
+    addFlight(nextFlightNum(), 'LED', 'VKO', fixedDate(3, day, 18, 0));
   }
 
-  // ── 4) International from Moscow (Feb 25 – Mar 1) ──
+  // ── 3) Moscow hubs cross-routes + popular southern routes (Mar 3-14) ──
+  for (let day = 3; day <= 14; day++) {
+    addFlight(nextFlightNum(), 'SVO', 'AER', fixedDate(3, day, 6, 0));
+    addFlight(nextFlightNum(), 'SVO', 'AER', fixedDate(3, day, 12, 30));
+    addFlight(nextFlightNum(), 'AER', 'SVO', fixedDate(3, day, 16, 0));
+    addFlight(nextFlightNum(), 'SVO', 'KRR', fixedDate(3, day, 8, 15));
+    addFlight(nextFlightNum(), 'KRR', 'SVO', fixedDate(3, day, 17, 30));
+    addFlight(nextFlightNum(), 'SVO', 'MRV', fixedDate(3, day, 10, 0));
+    addFlight(nextFlightNum(), 'SVO', 'SIP', fixedDate(3, day, 13, 45));
+    addFlight(nextFlightNum(), 'SIP', 'SVO', fixedDate(3, day, 19, 0));
+    addFlight(nextFlightNum(), 'LED', 'AER', fixedDate(3, day, 9, 0));
+    addFlight(nextFlightNum(), 'AER', 'LED', fixedDate(3, day, 20, 30));
+    addFlight(nextFlightNum(), 'SVO', 'KGD', fixedDate(3, day, 11, 15));
+    addFlight(nextFlightNum(), 'KGD', 'SVO', fixedDate(3, day, 18, 45));
+    addFlight(nextFlightNum(), 'SVO', 'AAQ', fixedDate(3, day, 7, 30));
+    addFlight(nextFlightNum(), 'AAQ', 'SVO', fixedDate(3, day, 15, 0));
+  }
+
+  // ── 4) International from Moscow (Mar 3-20) ──
   const intlDests = ['IST', 'AYT', 'DXB', 'AUH', 'BKK', 'HKT', 'MLE', 'PEK', 'HRG', 'SSH',
                      'ALA', 'TSE', 'TAS', 'EVN', 'GYD', 'MSQ', 'FRU', 'DYU'];
-  for (let day = 25; day <= 28; day++) {
+  for (let day = 3; day <= 20; day++) {
     for (const dest of intlDests) {
       const hour = 4 + (intlDests.indexOf(dest) * 2) % 20;
-      flightData.push({ number: nextFlightNum(), from: 'SVO', to: dest, date: fixedDate(2, day, hour, 0) });
+      addFlight(nextFlightNum(), 'SVO', dest, fixedDate(3, day, hour, 0));
+      // Return flights every other day
+      if (day % 2 === 0) {
+        addFlight(nextFlightNum(), dest, 'SVO', fixedDate(3, day, (hour + 8) % 24, 30));
+      }
     }
-  }
-  // March 1 — international
-  for (const dest of intlDests) {
-    const hour = 5 + (intlDests.indexOf(dest) * 3) % 18;
-    flightData.push({ number: nextFlightNum(), from: 'SVO', to: dest, date: fixedDate(3, 1, hour, 0) });
   }
 
   console.log(`📊 Total flights to create: ${flightData.length}`);
@@ -267,6 +286,7 @@ async function seed() {
         departureAirportId: airports[f.from],
         destinationAirportId: airports[f.to],
         departureTime: f.date,
+        arrivalTime: f.arrivalDate,
       })),
     });
     console.log(`  ✈️  Created ${Math.min(i + BATCH_SIZE, flightData.length)}/${flightData.length} flights...`);
@@ -279,38 +299,165 @@ async function seed() {
 
   console.log(`✅ Created ${allFlights.length} flights`);
 
-  // ── Seats ──────────────────────────────────────────────────
-  const seatLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const rows = 5; // 5 rows × 6 seats = 30 seats per flight
+  // ── Seats — Boeing layouts ──────────────────────────────────
 
-  // Create seats in big batches (multiple flights at a time)
-  const SEAT_BATCH = 20; // 20 flights × 30 seats = 600 rows per insert
-  for (let i = 0; i < allFlights.length; i += SEAT_BATCH) {
-    const flightBatch = allFlights.slice(i, i + SEAT_BATCH);
-    const allSeats = [];
-    for (const flight of flightBatch) {
-      for (let row = 1; row <= rows; row++) {
-        for (const letter of seatLetters) {
-          const seatNumber = `${row}${letter}`;
-          const basePrice = flight.flightNumber.startsWith('SU') ? 5500 : 3800;
-          const price = basePrice - (row - 1) * 300 + (letter <= 'C' ? 500 : 0);
-          allSeats.push({
-            flightId: flight.id,
-            seatNumber,
-            price,
-            status: 'AVAILABLE' as const,
-          });
-        }
+  // Boeing 737-800: Business (rows 1-4, 2+2: A,C,D,F) + Economy (rows 5-30, 3+3: A,B,C,D,E,F)
+  // Boeing 777-300: Business (rows 1-5, 2+2+2: A,C,D,G,H,K) + Economy (rows 6-45, 3+4+3: A,B,C,D,E,F,G,H,J,K)
+
+  interface SeatDef {
+    seatNumber: string;
+    class: string;
+    row: number;
+    letter: string;
+    price: number;
+  }
+
+  function generateBoeing737Seats(flightNumber: string): SeatDef[] {
+    const seats: SeatDef[] = [];
+    const isSU = flightNumber.startsWith('SU');
+
+    // Business class: rows 1-4, seats A,C,D,F (no middle B,E — wider spacing)
+    for (let row = 1; row <= 4; row++) {
+      for (const letter of ['A', 'C', 'D', 'F']) {
+        const basePrice = isSU ? 18000 : 14000;
+        const price = basePrice - (row - 1) * 500 + (letter <= 'C' ? 200 : 0);
+        seats.push({
+          seatNumber: `${row}${letter}`,
+          class: 'business',
+          row,
+          letter,
+          price,
+        });
       }
     }
+
+    // Economy class: rows 5-30, seats A,B,C,D,E,F (3+3)
+    for (let row = 5; row <= 30; row++) {
+      for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
+        const basePrice = isSU ? 5500 : 3800;
+        // Window seats (A,F) cost more, exit rows (12, 25) cost more
+        const windowBonus = (letter === 'A' || letter === 'F') ? 400 : 0;
+        const exitBonus = (row === 12 || row === 25) ? 800 : 0;
+        const rowDiscount = Math.floor((row - 5) / 5) * 200; // further back = cheaper
+        const price = basePrice + windowBonus + exitBonus - rowDiscount;
+        seats.push({
+          seatNumber: `${row}${letter}`,
+          class: 'economy',
+          row,
+          letter,
+          price,
+        });
+      }
+    }
+
+    return seats; // 16 business + 156 economy = 172 total
+  }
+
+  function generateBoeing777Seats(flightNumber: string): SeatDef[] {
+    const seats: SeatDef[] = [];
+
+    // Business class: rows 1-5, seats A,C,D,G,H,K (2+2+2, wide aisles)
+    for (let row = 1; row <= 5; row++) {
+      for (const letter of ['A', 'C', 'D', 'G', 'H', 'K']) {
+        const basePrice = 35000;
+        const price = basePrice - (row - 1) * 1000 + (letter === 'A' || letter === 'K' ? 500 : 0);
+        seats.push({
+          seatNumber: `${row}${letter}`,
+          class: 'business',
+          row,
+          letter,
+          price,
+        });
+      }
+    }
+
+    // Economy class: rows 6-45, seats A,B,C,D,E,F,G,H,J,K (3+4+3, no letter I)
+    for (let row = 6; row <= 45; row++) {
+      for (const letter of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K']) {
+        const basePrice = 12000;
+        const windowBonus = (letter === 'A' || letter === 'K') ? 600 : 0;
+        const exitBonus = (row === 20 || row === 35) ? 1200 : 0;
+        const rowDiscount = Math.floor((row - 6) / 8) * 400;
+        const price = basePrice + windowBonus + exitBonus - rowDiscount;
+        seats.push({
+          seatNumber: `${row}${letter}`,
+          class: 'economy',
+          row,
+          letter,
+          price,
+        });
+      }
+    }
+
+    return seats; // 30 business + 400 economy = 430 total
+  }
+
+  // Determine aircraft type: international = 777, domestic = 737
+  const internationalCodes = new Set(['IST', 'AYT', 'DXB', 'AUH', 'BKK', 'HKT', 'MLE', 'PEK', 'HRG', 'SSH',
+    'ALA', 'TSE', 'TAS', 'EVN', 'GYD', 'MSQ', 'FRU', 'DYU']);
+
+  // Update aircraft type for international flights
+  const flightNumberToType: Record<string, string> = {};
+  for (const f of flightData) {
+    const isIntl = internationalCodes.has(f.from) || internationalCodes.has(f.to);
+    flightNumberToType[f.number] = isIntl ? 'Boeing 777-300' : 'Boeing 737-800';
+  }
+
+  // Update flights with aircraft type
+  for (const flight of allFlights) {
+    const type = flightNumberToType[flight.flightNumber];
+    if (type && type !== 'Boeing 737-800') {
+      await prisma.flight.update({
+        where: { id: flight.id },
+        data: { aircraftType: type },
+      });
+    }
+  }
+
+  // Create seats in batches
+  let totalSeats = 0;
+  const SEAT_BATCH = 10; // flights per batch
+  for (let i = 0; i < allFlights.length; i += SEAT_BATCH) {
+    const flightBatch = allFlights.slice(i, i + SEAT_BATCH);
+    const allSeats: Array<{
+      flightId: string;
+      seatNumber: string;
+      class: string;
+      row: number;
+      letter: string;
+      price: number;
+      status: 'AVAILABLE';
+    }> = [];
+
+    for (const flight of flightBatch) {
+      const type = flightNumberToType[flight.flightNumber] || 'Boeing 737-800';
+      const seatDefs = type === 'Boeing 777-300'
+        ? generateBoeing777Seats(flight.flightNumber)
+        : generateBoeing737Seats(flight.flightNumber);
+
+      for (const s of seatDefs) {
+        allSeats.push({
+          flightId: flight.id,
+          seatNumber: s.seatNumber,
+          class: s.class,
+          row: s.row,
+          letter: s.letter,
+          price: s.price,
+          status: 'AVAILABLE' as const,
+        });
+      }
+      totalSeats += seatDefs.length;
+    }
+
     await prisma.seat.createMany({ data: allSeats });
-    if ((i + SEAT_BATCH) % 200 === 0 || i + SEAT_BATCH >= allFlights.length) {
+    if ((i + SEAT_BATCH) % 100 === 0 || i + SEAT_BATCH >= allFlights.length) {
       console.log(`  💺 Seats created for ${Math.min(i + SEAT_BATCH, allFlights.length)}/${allFlights.length} flights...`);
     }
   }
 
-  const totalSeats = allFlights.length * seatLetters.length * rows;
-  console.log(`✅ Created ${totalSeats} seats (${seatLetters.length * rows} per flight)`);
+  console.log(`✅ Created ${totalSeats} seats`);
+  console.log(`   Boeing 737-800: 172 seats (16 business + 156 economy)`);
+  console.log(`   Boeing 777-300: 430 seats (30 business + 400 economy)`);
   console.log('');
 
   // Coverage verification
@@ -325,7 +472,7 @@ async function seed() {
   console.log(`   Russian airports: ${russianCodes.length}`);
   console.log(`   Flights: ${allFlights.length}`);
   console.log(`   Seats: ${totalSeats}`);
-  console.log(`   Date range: 2026-02-25 → 2026-03-01`);
+  console.log(`   Date range: 2026-03-03 → 2026-03-20`);
   if (missingFrom.length > 0) console.log(`   ⚠️  No outgoing flights: ${missingFrom.join(', ')}`);
   if (missingTo.length > 0) console.log(`   ⚠️  No incoming flights: ${missingTo.join(', ')}`);
   if (missingFrom.length === 0 && missingTo.length === 0) {

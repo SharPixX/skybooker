@@ -27,10 +27,16 @@ export default function AuthPage() {
       }
       navigate('/');
     } catch (err) {
-      const msg = isAxiosError(err)
-        ? err.response?.data?.message
-        : 'Что-то пошло не так';
-      setError(msg || 'Что-то пошло не так');
+      if (isAxiosError(err)) {
+        const responseData = err.response?.data;
+        if (responseData?.details && responseData.details.length > 0) {
+          setError(responseData.details.map((d: { message: string }) => d.message).join(', '));
+        } else {
+          setError(responseData?.message || 'Что-то пошло не так');
+        }
+      } else {
+        setError('Что-то пошло не так');
+      }
     } finally {
       setLoading(false);
     }

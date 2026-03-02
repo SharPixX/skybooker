@@ -92,3 +92,33 @@ export async function getProfile(userId: string) {
 
   return user;
 }
+
+export async function updateProfile(userId: string, name: string) {
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { name },
+    select: { id: true, email: true, name: true, createdAt: true },
+  });
+  return user;
+}
+
+export async function updatePassword(userId: string, oldPassword: string, newPassword: string) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  const isValid = await bcrypt.compare(oldPassword, user.password);
+  if (!isValid) {
+    throw new AppError('Incorrect current password', 400);
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
+  
+  return true;
+}

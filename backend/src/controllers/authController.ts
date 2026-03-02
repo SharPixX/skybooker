@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { register, login, getProfile } from '../services/authService';
+import { register, login, getProfile, updateProfile, updatePassword } from '../services/authService';
 import { RegisterBody, LoginBody } from '../schemas';
 
 export async function registerHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -39,6 +39,36 @@ export async function profileHandler(req: Request, res: Response, next: NextFunc
     res.json({
       status: 'ok',
       data: user,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateProfileHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { name } = req.body as { name: string };
+    const user = await updateProfile(req.user!.userId, name);
+
+    res.json({
+      status: 'ok',
+      message: 'Profile updated successfully',
+      data: user,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updatePasswordHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { oldPassword, newPassword } = req.body as { oldPassword: string; newPassword: string };
+    await updatePassword(req.user!.userId, oldPassword, newPassword);
+
+    res.json({
+      status: 'ok',
+      message: 'Password updated successfully',
+      data: null,
     });
   } catch (error) {
     next(error);

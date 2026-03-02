@@ -58,3 +58,19 @@ export type LoginBody = z.infer<typeof loginSchema>;
 export type SearchFlightsQuery = z.infer<typeof searchFlightsSchema>;
 export type CreateBookingBody = z.infer<typeof createBookingSchema>;
 export type SearchCitiesQuery = z.infer<typeof searchCitiesSchema>;
+
+export const updateProfileSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+});
+
+export const updatePasswordSchema = z.object({
+  oldPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z
+    .string()
+    .min(6, 'Password must be at least 6 characters')
+    .regex(/[a-zA-Zа-яА-Я]/, 'Password must contain at least one letter')
+    .regex(/[0-9]/, 'Password must contain at least one digit'),
+});
+
+export type UpdateProfileBody = z.infer<typeof updateProfileSchema>;
+export type UpdatePasswordBody = z.infer<typeof updatePasswordSchema>;
