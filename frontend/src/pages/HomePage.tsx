@@ -50,9 +50,8 @@ export default function HomePage() {
 
         <div className="relative max-w-5xl mx-auto px-4 -mt-10 pb-0 text-center flex flex-col items-center">
           
-          {/* Lidar Plane 3D Container */}
           <div className="w-full h-[300px] sm:h-[400px] relative -mb-20 pointer-events-none">
-            <Canvas camera={{ position: [15, 8, -15], fov: 60 }} gl={{ alpha: true }}>
+            <Canvas camera={{ position: [15, 8, -15], fov: 60 }} gl={{ alpha: true }} style={{ background: 'transparent' }}>
               <ambientLight intensity={0.5} />
               <Suspense fallback={null}>
                 <LidarPlaneModel />
@@ -111,7 +110,7 @@ export default function HomePage() {
                 {/* Submit Button */}
                 <button
                   onClick={handleSearch}
-                  className="group flex items-center justify-center h-16 w-full lg:w-48 bg-[#50B2FF] hover:bg-[#40A2EF] text-white font-bold rounded-[1.25rem] transition-all duration-300 flex-shrink-0"
+                  className="group flex items-center justify-center h-16 w-full lg:w-48 bg-[#4B8EE9] hover:bg-[#3D7BD4] text-white font-bold rounded-[1.25rem] transition-all duration-300 flex-shrink-0"
                 >
                   <div className="flex items-center gap-2">
                     <Search className="w-5 h-5 flex-shrink-0" />

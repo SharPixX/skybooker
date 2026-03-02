@@ -12,13 +12,15 @@ import HelpPage from './pages/HelpPage';
 import LegalPage from './pages/LegalPage';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import ParticlesBackground from './components/ParticlesBackground';
 
 export default function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
         <AuthProvider>
-          <div className="min-h-screen bg-dark-900 text-fg-secondary flex flex-col">
+          <div className="min-h-screen bg-dark-900 text-fg-secondary flex flex-col relative">
+            <ParticlesBackground />
             <Header />
             <main className="flex-1">
               <Routes>

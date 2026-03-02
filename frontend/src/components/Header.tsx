@@ -1,36 +1,25 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Plane, Search, LogIn, Sun, Moon } from 'lucide-react';
+import { Search, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 
 export default function Header() {
   const location = useLocation();
   const isHome = location.pathname === '/';
   const { user, isAuthenticated } = useAuth();
-  const { theme, toggleTheme } = useTheme();
 
   return (
-    <header className="bg-dark-800/80 backdrop-blur-md border-b border-dark-600 sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between relative">
-        <Link to="/" className="flex items-center gap-2.5 group z-10">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-blue to-sky flex items-center justify-center group-hover:scale-105 transition-transform">
-            <Plane className="w-4 h-4 text-white -rotate-45" />
-          </div>
-          <span className="text-lg font-bold text-fg">
-            Lidar<span className="text-sky">Air</span>
-          </span>
-        </Link>
-
-        {/* Centered logo */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+    <header className="bg-dark-800/80 backdrop-blur-md border-b border-dark-600 sticky top-0 z-50 overflow-visible">
+      <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between overflow-visible">
+        {/* Logo */}
+        <Link to="/" className="flex items-center shrink-0 -ml-4">
           <img
             src="/logo.png"
             alt="LidarAir"
-            className="h-8 object-contain opacity-80"
+            className="h-36 max-w-[260px] sm:max-w-[320px] object-contain"
           />
-        </div>
+        </Link>
 
-        <nav className="flex items-center gap-3 z-10">
+        <nav className="flex items-center gap-3">
           {!isHome && (
             <Link
               to="/"
@@ -40,15 +29,6 @@ export default function Header() {
               <span className="hidden sm:inline">Поиск</span>
             </Link>
           )}
-
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg text-fg-muted hover:text-fg hover:bg-dark-700 transition-colors"
-            title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
-          >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
 
           {isAuthenticated ? (
             <Link
