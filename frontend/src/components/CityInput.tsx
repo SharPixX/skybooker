@@ -31,10 +31,11 @@ export default function CityInput({ label, placeholder, value, onChange, type = 
         const cities = await searchCities(query);
         setSuggestions(cities);
         setOpen(true);
-      } catch {
+      } catch (err) {
+        console.error('[CityInput] search error:', err);
         setSuggestions([]);
       }
-    }, 200);
+    }, 300);
     return () => clearTimeout(timer);
   }, [query]);
 

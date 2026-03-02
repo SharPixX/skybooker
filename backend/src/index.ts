@@ -35,10 +35,10 @@ app.use(morgan(isProduction ? 'combined' : 'dev'));
 app.use(express.json({ limit: '1mb' }));
 
 // ── Rate limiting ────────────────────────────────────────
-// General rate limit: 100 requests per 15 minutes per IP
+// General rate limit: 300 requests per 15 minutes per IP
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 100,
+  limit: 300,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { status: 'error', message: 'Too many requests. Please try again later.' },
@@ -66,7 +66,8 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/flights', generalLimiter, flightRoutes);
 app.use('/api/bookings', generalLimiter, bookingRoutes);
-app.use('/api/cities', generalLimiter, cityRoutes);
+// Cities autocomplete — no rate limit (public read-only, needs fast response)
+app.use('/api/cities', cityRoutes);
 
 // Error handler (must be last)
 app.use(errorHandler);
