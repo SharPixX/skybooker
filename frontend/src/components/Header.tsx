@@ -11,8 +11,8 @@ export default function Header() {
 
   return (
     <header className="bg-dark-800/80 backdrop-blur-md border-b border-dark-600 sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2.5 group">
+      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between relative">
+        <Link to="/" className="flex items-center gap-2.5 group z-10">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-blue to-sky flex items-center justify-center group-hover:scale-105 transition-transform">
             <Plane className="w-4 h-4 text-white -rotate-45" />
           </div>
@@ -21,7 +21,16 @@ export default function Header() {
           </span>
         </Link>
 
-        <nav className="flex items-center gap-3">
+        {/* Centered logo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <img
+            src="/logo.png"
+            alt="LidarAir"
+            className="h-8 object-contain opacity-80"
+          />
+        </div>
+
+        <nav className="flex items-center gap-3 z-10">
           {!isHome && (
             <Link
               to="/"
