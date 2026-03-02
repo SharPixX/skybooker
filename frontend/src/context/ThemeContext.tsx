@@ -12,14 +12,6 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = 'skybooker-theme';
 
 function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'dark';
-
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark') return stored;
-
-  // Respect system preference
-  if (window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
-
   return 'dark';
 }
 
@@ -35,22 +27,10 @@ function applyTheme(theme: Theme) {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
+  // Force dark theme on mount (clear any stale 'light' in localStorage)
   useEffect(() => {
-    applyTheme(theme);
-    localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme]);
-
-  // Listen for system preference changes
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-color-scheme: light)');
-    const handler = (e: MediaQueryListEvent) => {
-      // Only auto-switch if user hasn't manually set a preference
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setTheme(e.matches ? 'light' : 'dark');
-      }
-    };
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
+    applyTheme('dark');
+    localStorage.setItem(STORAGE_KEY, 'dark');
   }, []);
 
   const toggleTheme = useCallback(() => {
