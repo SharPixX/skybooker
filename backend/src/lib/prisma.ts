@@ -3,8 +3,8 @@ dotenv.config();
 
 import { PrismaClient } from '@prisma/client';
 
+// Let Prisma read DATABASE_URL from schema.prisma. DIRECT_URL is for CLI/migrations.
 const prisma = new PrismaClient({
-  datasourceUrl: process.env.DIRECT_URL || process.env.DATABASE_URL,
   log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
 });
 
