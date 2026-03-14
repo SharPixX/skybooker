@@ -1,66 +1,114 @@
 import { Link } from 'react-router-dom';
-import { Building2, Users, Globe, Plane } from 'lucide-react';
+import { Compass, Plane, ShieldCheck } from 'lucide-react';
+
+const metrics = [
+  { label: 'Рейсы', value: 'Поиск, выбор и бронь в одном потоке' },
+  { label: 'Тарифы', value: 'Условия видны до оплаты' },
+  { label: 'Кабинет', value: 'Билеты и маршруты под рукой' },
+] as const;
+
+const highlights = [
+  {
+    title: 'Спокойный путь от поиска до билета',
+    description:
+      'Yandex Air собирает ключевые действия авиапокупки в один понятный сценарий: маршрут, рейсы, место, бронь и кабинет пассажира.',
+  },
+  {
+    title: 'Все важное видно заранее',
+    description:
+      'Стоимость, тариф, условия багажа и действия после покупки не прячутся за следующими шагами и остаются читаемыми на каждом экране.',
+  },
+] as const;
+
+const principles = [
+  {
+    title: 'Понятный маршрут',
+    text: 'Каждый экран отвечает на один вопрос: найти рейс, выбрать тариф, место или проверить бронь.',
+    icon: Compass,
+  },
+  {
+    title: 'Видимые условия',
+    text: 'Багаж, обмен и правила тарифа доступны еще до оформления билета.',
+    icon: ShieldCheck,
+  },
+  {
+    title: 'Один сервисный слой',
+    text: 'Покупка, маршрут и кабинет пассажира собраны в одном интерфейсе без лишних переходов.',
+    icon: Plane,
+  },
+] as const;
 
 export default function AboutPage() {
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-fg-subtle mb-8">
-        <Link to="/" className="hover:text-fg transition-colors">Главная</Link>
-        <span>/</span>
-        <span className="text-fg-muted">О компании</span>
-      </div>
-
-      <h1 className="text-2xl md:text-3xl font-bold text-fg mb-6">О компании</h1>
-
-      <div className="space-y-6 text-sm text-fg-muted leading-relaxed">
-        <p>
-          <span className="text-fg font-medium">SkyBooker</span> — современный сервис бронирования авиабилетов,
-          разработанный с фокусом на скорость, удобство и безопасность. Мы помогаем путешественникам
-          находить лучшие предложения и бронировать билеты за считанные секунды.
-        </p>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-5">
-            <Building2 className="w-5 h-5 text-sky mb-3" />
-            <p className="text-fg font-medium text-sm mb-1">Основан в 2026</p>
-            <p className="text-xs text-fg-subtle">Молодая и амбициозная команда</p>
-          </div>
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-5">
-            <Users className="w-5 h-5 text-neon-purple mb-3" />
-            <p className="text-fg font-medium text-sm mb-1">10 000+ клиентов</p>
-            <p className="text-xs text-fg-subtle">Доверяют нам свои путешествия</p>
-          </div>
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-5">
-            <Globe className="w-5 h-5 text-neon-green mb-3" />
-            <p className="text-fg font-medium text-sm mb-1">97 аэропортов</p>
-            <p className="text-xs text-fg-subtle">По всей России и СНГ</p>
-          </div>
+    <div className="air-page">
+      <div className="air-container">
+        <div className="mb-4 flex items-center gap-2 text-sm text-[var(--air-muted)]">
+          <Link to="/" className="font-semibold text-[var(--air-ink)]">
+            Главная
+          </Link>
+          <span>/</span>
+          <span>О компании</span>
         </div>
 
-        <h2 className="text-lg font-semibold text-fg pt-2">Наша миссия</h2>
-        <p>
-          Сделать авиаперелёты доступными для каждого. Мы верим, что поиск и покупка билетов
-          должны быть такими же простыми, как отправка сообщения — без скрытых комиссий,
-          сложных интерфейсов и долгих ожиданий.
-        </p>
+        <section className="air-surface-card-strong px-5 py-6 md:px-8 md:py-8">
+          <div className="air-section-kicker">О Yandex Air</div>
+          <h1 className="mt-4 max-w-4xl text-4xl font-extrabold tracking-[-0.05em] text-[var(--air-ink)] md:text-6xl">
+            Авиакомпания, где важное видно до покупки билета
+          </h1>
+          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-[var(--air-muted)] md:text-base">
+            Yandex Air объединяет поиск рейсов, тарифы, выбор места и управление поездкой в одном спокойном интерфейсе.
+          </p>
+        </section>
 
-        <h2 className="text-lg font-semibold text-fg pt-2">Технологии</h2>
-        <p>
-          Платформа построена на современном стеке: React, Node.js, PostgreSQL.
-          Мы используем пессимистичные блокировки на уровне базы данных для предотвращения
-          двойных бронирований и JWT-аутентификацию для защиты ваших данных.
-        </p>
-      </div>
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
+          {metrics.map((metric) => (
+            <div key={metric.label} className="air-soft-card p-5 md:p-6">
+              <div className="air-quiet-label">{metric.label}</div>
+              <div className="mt-3 text-2xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">{metric.value}</div>
+            </div>
+          ))}
+        </section>
 
-      <div className="mt-10 p-6 bg-dark-800 border border-dark-600 rounded-xl">
-        <div className="flex items-center gap-3">
-          <Plane className="w-5 h-5 text-sky -rotate-45" />
-          <div>
-            <p className="text-sm text-fg font-medium">Хотите сотрудничать?</p>
-            <p className="text-xs text-fg-subtle mt-0.5">Напишите нам: hello@skybooker.ru</p>
-          </div>
-        </div>
+        <section className="mt-6 grid gap-4 xl:grid-cols-2">
+          {highlights.map((item, index) => (
+            <div key={item.title} className={index === 1 ? 'air-dark-card p-5 md:p-6' : 'air-surface-card p-5 md:p-6'}>
+              <div
+                className="air-section-kicker"
+                style={index === 1 ? { color: 'rgba(248,245,238,0.72)' } : undefined}
+              >
+                Подход
+              </div>
+              <div
+                className="mt-4 text-3xl font-extrabold tracking-[-0.05em]"
+                style={index === 1 ? { color: 'white' } : { color: 'var(--air-ink)' }}
+              >
+                {item.title}
+              </div>
+              <div
+                className="mt-4 text-sm leading-relaxed md:text-base"
+                style={index === 1 ? { color: 'rgba(248,245,238,0.74)' } : { color: 'var(--air-muted)' }}
+              >
+                {item.description}
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
+          {principles.map((principle) => {
+            const Icon = principle.icon;
+
+            return (
+              <div key={principle.title} className="air-link-card px-5 py-5">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[rgba(79,130,255,0.1)] text-[var(--air-blue-deep)]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="mt-5 text-xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">{principle.title}</div>
+                <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">{principle.text}</div>
+              </div>
+            );
+          })}
+        </section>
       </div>
     </div>
   );

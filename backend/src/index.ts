@@ -18,6 +18,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
+const isOutboxWorkerEnabled = process.env.ENABLE_OUTBOX_WORKER === 'true';
 
 // ── Security ─────────────────────────────────────────────
 app.use(helmet());
@@ -89,7 +90,10 @@ const server = app.listen(port, () => {
   console.log('');
 
   // Start the Outbox Worker (processes payment events)
-  const outboxInterval = startOutboxWorker();
+  const outboxInterval = isOutboxWorkerEnabled ? startOutboxWorker() : null;
+  if (!isOutboxWorkerEnabled) {
+    console.log('⏸ Outbox worker: disabled (set ENABLE_OUTBOX_WORKER=true to enable)');
+  }
 
   // Start expired bookings cleanup (every 60 seconds)
   const CLEANUP_INTERVAL_MS = 60_000;
@@ -107,7 +111,9 @@ const server = app.listen(port, () => {
   const shutdown = async () => {
     console.log('\n🛑 Shutting down gracefully...');
     clearInterval(cleanupInterval);
-    clearInterval(outboxInterval);
+    if (outboxInterval) {
+      clearInterval(outboxInterval);
+    }
     server.close(() => {
       console.log('🔒 HTTP server closed');
     });

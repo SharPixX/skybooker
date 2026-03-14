@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { MapPin, PlaneLanding, PlaneTakeoff } from 'lucide-react';
 import { searchCities } from '../api';
-import { City } from '../types';
-import { PlaneTakeoff, PlaneLanding, MapPin } from 'lucide-react';
+import type { City } from '../types';
 
 interface CityInputProps {
   label: string;
@@ -11,88 +11,105 @@ interface CityInputProps {
   type?: 'from' | 'to';
 }
 
-export default function CityInput({ label, placeholder, value, onChange, type = 'from' }: CityInputProps) {
+export default function CityInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  type = 'from',
+}: CityInputProps) {
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<City[]>([]);
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setQuery(value);
   }, [value]);
 
   useEffect(() => {
-    if (query.length < 1) {
+    if (!query.trim()) {
       setSuggestions([]);
       return;
     }
-    const timer = setTimeout(async () => {
+
+    const timer = window.setTimeout(async () => {
       try {
         const cities = await searchCities(query);
         setSuggestions(cities);
-        setOpen(true);
-      } catch (err) {
-        console.error('[CityInput] search error:', err);
+        setOpen(cities.length > 0);
+      } catch {
         setSuggestions([]);
       }
-    }, 300);
-    return () => clearTimeout(timer);
+    }, 220);
+
+    return () => window.clearTimeout(timer);
   }, [query]);
 
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+    const handleOutside = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
       }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    };
+
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
   }, []);
 
   const Icon = type === 'from' ? PlaneTakeoff : PlaneLanding;
 
   return (
-    <div ref={ref} className="relative flex-1 w-full h-full">
-      <div className="group relative flex items-center h-16 w-full px-5 rounded-[1.25rem] bg-[#090C15]/50 hover:bg-[#090C15]/80 border border-white/5 hover:border-white/10 focus-within:!border-sky/50 focus-within:!bg-[#090C15] transition-all duration-300">
-        <Icon className="w-5 h-5 text-[#4E5466] group-focus-within:text-sky transition-colors flex-shrink-0" />
-        <div className="flex flex-col flex-1 pl-4 h-full justify-center">
-          <label className="text-[10px] text-[#4E5466] uppercase tracking-[0.1em] font-bold mb-0.5 group-focus-within:text-sky transition-colors cursor-text select-none text-left">
-            {label}
-          </label>
-          <input
-            type="text"
-            value={query}
-            placeholder={placeholder}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              onChange(e.target.value);
-            }}
-            onFocus={() => suggestions.length > 0 && setOpen(true)}
-            className="w-full bg-transparent text-white text-base font-medium placeholder:text-[#4E5466] focus:outline-none leading-none pb-0.5"
-          />
+    <div ref={rootRef} className="relative min-w-0">
+      <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-muted)]">
+        {label}
+      </label>
+
+      <div className="air-field flex min-h-[72px] items-center gap-3 px-4">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(255,207,63,0.16)] text-[var(--air-ink)]">
+          <Icon className="h-5 w-5" />
         </div>
+
+        <input
+          type="text"
+          value={query}
+          placeholder={placeholder}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setQuery(nextValue);
+            onChange(nextValue);
+          }}
+          onFocus={() => {
+            if (suggestions.length > 0) {
+              setOpen(true);
+            }
+          }}
+          className="w-full bg-transparent text-[1rem] font-semibold text-[var(--air-ink)] outline-none placeholder:text-[var(--air-muted)]"
+        />
       </div>
+
       {open && suggestions.length > 0 && (
-        <div className="absolute z-50 top-[calc(100%+8px)] left-0 w-full bg-dark-800/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl shadow-black/50 overflow-hidden transform origin-top animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-2 flex flex-col gap-1">
+        <div className="absolute left-0 top-[calc(100%+10px)] z-50 w-full overflow-hidden rounded-[24px] border border-[var(--air-border-strong)] bg-[rgba(255,255,255,0.98)] shadow-[0_28px_72px_rgba(16,24,38,0.16)]">
+          <div className="max-h-72 overflow-y-auto p-2">
             {suggestions.map((city) => (
               <button
                 key={city.full}
+                type="button"
                 onClick={() => {
                   setQuery(city.full);
                   onChange(city.full);
                   setOpen(false);
                 }}
-                className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/5 transition-all flex items-center gap-4 group/item"
+                className="flex w-full items-start gap-3 rounded-[18px] px-3 py-3 text-left transition-colors hover:bg-[rgba(16,24,38,0.05)]"
               >
-                <div className="w-8 h-8 rounded-full bg-dark-700 flex items-center justify-center group-hover/item:bg-sky/20 transition-colors">
-                  <MapPin className="w-4 h-4 text-sky/70 group-hover/item:text-sky" />
+                <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl bg-[rgba(79,130,255,0.1)] text-[var(--air-blue-deep)]">
+                  <MapPin className="h-4 w-4" />
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-fg font-medium">{city.name}</span>
-                  {city.code && (
-                    <span className="text-xs text-sky font-mono mt-0.5">{city.code}</span>
-                  )}
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-extrabold text-[var(--air-ink)]">
+                    {city.name} ({city.code})
+                  </div>
+                  <div className="truncate text-xs text-[var(--air-muted)]">{city.airportName}</div>
                 </div>
               </button>
             ))}

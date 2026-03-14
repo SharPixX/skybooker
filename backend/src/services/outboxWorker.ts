@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 
 interface PaymentPayload {
@@ -8,6 +9,23 @@ interface PaymentPayload {
   seatNumber: string;
   amount: string;
   currency: string;
+}
+
+function isMissingOutboxStorage(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) {
+    return false;
+  }
+
+  if (error.code === 'P2021' && (error.meta?.table === 'public.OutboxEvent' || error.meta?.modelName === 'OutboxEvent')) {
+    return true;
+  }
+
+  if (error.code === 'P2010') {
+    const rawMessage = typeof error.meta?.message === 'string' ? error.meta.message : '';
+    return rawMessage.includes('relation "OutboxEvent" does not exist');
+  }
+
+  return false;
 }
 
 /**
@@ -249,11 +267,24 @@ async function recoverStuckEvents(): Promise<void> {
 
 export function startOutboxWorker(): ReturnType<typeof setInterval> {
   console.log(`[Outbox] Worker started. Polling every ${POLL_INTERVAL_MS / 1000}s...`);
+  let disabledBecauseSchemaMissing = false;
 
   // Run recovery on startup for any events stuck from a previous crash
-  recoverStuckEvents().catch((err) => console.error('[Outbox] Recovery error:', err));
+  recoverStuckEvents().catch((err) => {
+    if (isMissingOutboxStorage(err)) {
+      disabledBecauseSchemaMissing = true;
+      console.warn('[Outbox] Outbox storage is not ready yet. Worker paused until schema is available.');
+      return;
+    }
+
+    console.error('[Outbox] Recovery error:', err);
+  });
 
   return setInterval(async () => {
+    if (disabledBecauseSchemaMissing) {
+      return;
+    }
+
     try {
       // Periodically recover stuck events
       await recoverStuckEvents();
@@ -268,6 +299,12 @@ export function startOutboxWorker(): ReturnType<typeof setInterval> {
         await processEvent(eventId);
       }
     } catch (error) {
+      if (isMissingOutboxStorage(error)) {
+        disabledBecauseSchemaMissing = true;
+        console.warn('[Outbox] Outbox storage is not ready yet. Worker paused until schema is available.');
+        return;
+      }
+
       console.error('[Outbox] Worker error:', error);
     }
   }, POLL_INTERVAL_MS);

@@ -1,490 +1,468 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { searchFlights } from '../api';
-import { Flight, Pagination } from '../types';
-import { Plane, Loader2, Search, ChevronDown, Check, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { ArrowRight, ChevronDown, Clock3, Filter, Loader2, Plane, Ticket, Users } from 'lucide-react';
+import { searchFlights } from '../api';
+import { searchMockFlights } from '../mockData';
+import type { Flight, Pagination } from '../types';
+import BookingSearchPanel from '../components/BookingSearchPanel';
 
 const PAGE_SIZE = 20;
 
-/* ─── Tariff definitions ─── */
-interface Tariff {
-  id: 'basic' | 'standard' | 'business';
-  name: string;
-  color: string;         // border/accent color class
-  bgColor: string;       // background
-  headerBg: string;      // header background
-  badge?: string;        // optional badge text
-  features: { icon: 'check' | 'paid' | 'no'; text: string }[];
+const sortOptions = [
+  { key: 'price', label: 'По цене' },
+  { key: 'time', label: 'По времени' },
+  { key: 'duration', label: 'По длительности' },
+] as const;
+
+function formatPrice(price: number | null | undefined) {
+  if (price == null) {
+    return '—';
+  }
+
+  return `${price.toLocaleString('ru-RU')} ₽`;
 }
 
-const TARIFFS: Tariff[] = [
-  {
-    id: 'basic',
-    name: 'Базовый',
-    color: 'border-sky/40',
-    bgColor: 'bg-sky/5',
-    headerBg: 'bg-sky/10',
-    features: [
-      { icon: 'check', text: 'Ручная кладь 36×30×27 см' },
-      { icon: 'paid', text: 'Багаж платный' },
-      { icon: 'paid', text: 'Выбор места платный' },
-      { icon: 'check', text: 'Мили бонус до 50%' },
-      { icon: 'paid', text: 'Обмен с неустойкой 5 000 ₽' },
-      { icon: 'no', text: 'Тариф невозвратный' },
-    ],
-  },
-  {
-    id: 'standard',
-    name: 'Оптимальный',
-    color: 'border-neon-blue/50',
-    bgColor: 'bg-neon-blue/5',
-    headerBg: 'bg-neon-blue/10',
-    badge: 'Популярный',
-    features: [
-      { icon: 'check', text: 'Ручная кладь 36×30×27 см' },
-      { icon: 'check', text: 'Багаж 10 кг × 1 место' },
-      { icon: 'check', text: 'Выбор места 19-32 ряд' },
-      { icon: 'check', text: 'Мили бонус до 75%' },
-      { icon: 'paid', text: 'Обмен с неустойкой 5 000 ₽' },
-      { icon: 'no', text: 'Тариф невозвратный' },
-    ],
-  },
-  {
-    id: 'business',
-    name: 'Максимум',
-    color: 'border-amber-400/40',
-    bgColor: 'bg-amber-500/5',
-    headerBg: 'bg-amber-500/10',
-    features: [
-      { icon: 'check', text: 'Ручная кладь 36×30×27 см' },
-      { icon: 'check', text: 'Багаж 20 кг × 1 место' },
-      { icon: 'check', text: 'Выбор мест кроме 1ABC и 2DEF' },
-      { icon: 'check', text: 'Мили бонус до 100%' },
-      { icon: 'check', text: 'Обмен бесплатный' },
-      { icon: 'check', text: 'Возврат бесплатный*' },
-    ],
-  },
-];
+function formatDuration(minutes?: number | null) {
+  if (!minutes) {
+    return '—';
+  }
 
-function FeatureIcon({ type }: { type: 'check' | 'paid' | 'no' }) {
-  if (type === 'check') return <Check className="w-3.5 h-3.5 text-neon-green flex-shrink-0" />;
-  if (type === 'paid') return <span className="w-3.5 h-3.5 flex items-center justify-center text-amber-400 flex-shrink-0 text-[10px] font-bold">₽</span>;
-  return <X className="w-3.5 h-3.5 text-neon-red/60 flex-shrink-0" />;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return `${hours} ч ${remainder.toString().padStart(2, '0')} мин`;
 }
 
-function formatDuration(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return `${h} ч ${m > 0 ? `${m} м` : ''}`.trim();
+function getFareCards(flight: Flight) {
+  return [
+    {
+      id: 'light',
+      title: 'Light',
+      subtitle: 'Базовый тариф',
+      price: flight.minEconomyPrice ?? flight.minPrice ?? null,
+      items: ['Ручная кладь', 'Место за доплату', 'Базовые условия'],
+    },
+    {
+      id: 'comfort',
+      title: 'Comfort',
+      subtitle: 'Оптимальный тариф',
+      price: flight.standardPrice ?? flight.minEconomyPrice ?? flight.minPrice ?? null,
+      items: ['Багаж 23 кг', 'Стандартное место', 'Изменение даты с доплатой'],
+    },
+    {
+      id: 'business',
+      title: 'Business',
+      subtitle: 'Приоритетный тариф',
+      price: flight.minBusinessPrice ?? null,
+      items: ['Приоритет', 'Бизнес-зал', 'Гибкий маршрут'],
+    },
+  ] as const;
 }
-
-function formatPrice(price: number | null | undefined): string {
-  if (price == null) return '—';
-  return price.toLocaleString('ru-RU') + ' ₽';
-}
-
-const MOCK_FLIGHTS: Flight[] = [
-  {
-    id: 'mock-1',
-    flightNumber: 'SU-1020',
-    aircraftType: 'Boeing 737-800',
-    departureAirport: { id: '1', code: 'SVO', name: 'Шереметьево', city: 'Москва', country: 'Россия' },
-    destinationAirport: { id: '2', code: 'AER', name: 'Адлер', city: 'Сочи', country: 'Россия' },
-    departureTime: new Date(Date.now() + 3 * 3600_000).toISOString(),
-    arrivalTime: new Date(Date.now() + 5.5 * 3600_000).toISOString(),
-    durationMinutes: 150,
-    minPrice: 3990,
-    minEconomyPrice: 3990,
-    standardPrice: 5490,
-    minBusinessPrice: 14500,
-    economySeatsAvail: 48,
-    businessSeatsAvail: 8,
-  },
-  {
-    id: 'mock-2',
-    flightNumber: 'S7-412',
-    aircraftType: 'Boeing 737-800',
-    departureAirport: { id: '1', code: 'SVO', name: 'Шереметьево', city: 'Москва', country: 'Россия' },
-    destinationAirport: { id: '2', code: 'AER', name: 'Адлер', city: 'Сочи', country: 'Россия' },
-    departureTime: new Date(Date.now() + 7 * 3600_000).toISOString(),
-    arrivalTime: new Date(Date.now() + 9.5 * 3600_000).toISOString(),
-    durationMinutes: 155,
-    minPrice: 4290,
-    minEconomyPrice: 4290,
-    standardPrice: 6100,
-    minBusinessPrice: 16800,
-    economySeatsAvail: 12,
-    businessSeatsAvail: 4,
-  },
-  {
-    id: 'mock-3',
-    flightNumber: 'DP-507',
-    aircraftType: 'Boeing 777-300',
-    departureAirport: { id: '1', code: 'SVO', name: 'Шереметьево', city: 'Москва', country: 'Россия' },
-    destinationAirport: { id: '3', code: 'DXB', name: 'Дубай', city: 'Дубай', country: 'ОАЭ' },
-    departureTime: new Date(Date.now() + 12 * 3600_000).toISOString(),
-    arrivalTime: new Date(Date.now() + 17.5 * 3600_000).toISOString(),
-    durationMinutes: 330,
-    minPrice: 12500,
-    minEconomyPrice: 12500,
-    standardPrice: 18900,
-    minBusinessPrice: 38000,
-    economySeatsAvail: 86,
-    businessSeatsAvail: 14,
-  },
-];
 
 export default function FlightsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [flights, setFlights] = useState<Flight[]>(MOCK_FLIGHTS);
+  const [flights, setFlights] = useState<Flight[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState('');
   const [sortBy, setSortBy] = useState<'price' | 'time' | 'duration'>('price');
-  const [showTariffInfo, setShowTariffInfo] = useState(true);
+  const [usingMockData, setUsingMockData] = useState(false);
 
   const from = searchParams.get('from') || '';
   const to = searchParams.get('to') || '';
   const date = searchParams.get('date') || '';
+  const returnDate = searchParams.get('returnDate') || '';
+  const trip = (searchParams.get('trip') as 'oneway' | 'roundtrip' | null) ?? 'oneway';
+  const passengers = Number(searchParams.get('passengers') || '1');
+  const cabin = (searchParams.get('cabin') as 'economy' | 'comfort' | 'business' | null) ?? 'economy';
 
   useEffect(() => {
-    async function load() {
+    async function loadFlights() {
       setLoading(true);
-      setError('');
       setPagination(null);
+      setUsingMockData(false);
+
       try {
-        const { flights: data, pagination: pg } = await searchFlights({ from, to, date, page: 1, limit: PAGE_SIZE });
-        setFlights(data.length > 0 ? data : MOCK_FLIGHTS);
-        setPagination(pg);
+        const { flights: data, pagination: pageInfo } = await searchFlights({
+          from,
+          to,
+          date,
+          page: 1,
+          limit: PAGE_SIZE,
+        });
+
+        setFlights(data);
+        setPagination(pageInfo);
       } catch {
-        // API недоступна — показываем моки
-        setFlights(MOCK_FLIGHTS);
+        const fallback = searchMockFlights({
+          from,
+          to,
+          date,
+          page: 1,
+          limit: PAGE_SIZE,
+        });
+
+        setUsingMockData(true);
+        setFlights(fallback.flights);
+        setPagination(fallback.pagination);
       } finally {
         setLoading(false);
       }
     }
-    load();
+
+    loadFlights();
   }, [from, to, date]);
 
-  const loadMore = useCallback(async () => {
-    if (!pagination || pagination.page >= pagination.totalPages) return;
+  const loadMore = async () => {
+    if (!pagination || pagination.page >= pagination.totalPages) {
+      return;
+    }
+
     setLoadingMore(true);
+
     try {
+      if (usingMockData) {
+        const nextPage = pagination.page + 1;
+        const fallback = searchMockFlights({
+          from,
+          to,
+          date,
+          page: nextPage,
+          limit: PAGE_SIZE,
+        });
+
+        setFlights((current) => [...current, ...fallback.flights]);
+        setPagination(fallback.pagination);
+        return;
+      }
+
       const nextPage = pagination.page + 1;
-      const { flights: data, pagination: pg } = await searchFlights({ from, to, date, page: nextPage, limit: PAGE_SIZE });
-      setFlights((prev) => [...prev, ...data]);
-      setPagination(pg);
-    } catch { /* silent */ } finally {
+      const { flights: data, pagination: pageInfo } = await searchFlights({
+        from,
+        to,
+        date,
+        page: nextPage,
+        limit: PAGE_SIZE,
+      });
+
+      setFlights((current) => [...current, ...data]);
+      setPagination(pageInfo);
+    } catch {
+      const nextPage = (pagination?.page ?? 1) + 1;
+      const pages = Array.from({ length: nextPage }, (_, index) =>
+        searchMockFlights({
+          from,
+          to,
+          date,
+          page: index + 1,
+          limit: PAGE_SIZE,
+        }),
+      );
+
+      const fallback = pages[pages.length - 1];
+      const combinedFlights = pages.flatMap((pageResult) => pageResult.flights);
+      setUsingMockData(true);
+      setFlights(combinedFlights);
+      setPagination(fallback.pagination);
+    } finally {
       setLoadingMore(false);
     }
-  }, [pagination, from, to, date]);
+  };
 
-  // Sort flights
-  const sortedFlights = [...flights].sort((a, b) => {
-    if (sortBy === 'price') return (a.minPrice ?? Infinity) - (b.minPrice ?? Infinity);
-    if (sortBy === 'time') return new Date(a.departureTime).getTime() - new Date(b.departureTime).getTime();
-    if (sortBy === 'duration') return (a.durationMinutes ?? Infinity) - (b.durationMinutes ?? Infinity);
-    return 0;
-  });
+  const sortedFlights = useMemo(() => {
+    return [...flights].sort((left, right) => {
+      if (sortBy === 'price') {
+        return (left.minPrice ?? Number.MAX_SAFE_INTEGER) - (right.minPrice ?? Number.MAX_SAFE_INTEGER);
+      }
 
-  const total = pagination?.total ?? flights.length;
-  const hasMore = pagination ? pagination.page < pagination.totalPages : false;
+      if (sortBy === 'time') {
+        return new Date(left.departureTime).getTime() - new Date(right.departureTime).getTime();
+      }
 
-  const fromCity = from ? from.split(' (')[0] : '';
-  const toCity = to ? to.split(' (')[0] : '';
+      return (left.durationMinutes ?? Number.MAX_SAFE_INTEGER) - (right.durationMinutes ?? Number.MAX_SAFE_INTEGER);
+    });
+  }, [flights, sortBy]);
 
-  function getTariffPrice(flight: Flight, tariffId: string): number | null {
-    if (tariffId === 'basic') return flight.minEconomyPrice ?? null;
-    if (tariffId === 'standard') return flight.standardPrice ?? null;
-    if (tariffId === 'business') return flight.minBusinessPrice ?? null;
-    return null;
-  }
+  const fromCity = from ? from.split(' (')[0] : 'Москва';
+  const toCity = to ? to.split(' (')[0] : 'Все направления';
+  const preferredFare = cabin === 'business' ? 'business' : cabin === 'comfort' ? 'comfort' : 'light';
+  const cabinLabel = cabin === 'business' ? 'Бизнес' : cabin === 'comfort' ? 'Комфорт' : 'Эконом';
+  const passengersLabel = passengers === 1 ? '1 пассажир' : passengers < 5 ? `${passengers} пассажира` : `${passengers} пассажиров`;
+  const visibleTotal = sortedFlights.length;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-fg-subtle mb-6">
-        <Link to="/" className="hover:text-fg transition-colors">Главная</Link>
-        <span>/</span>
-        <span className="text-fg-muted">Выбор рейса</span>
-      </div>
+    <div className="air-page">
+      <div className="air-container">
+        <div className="mb-4 flex items-center gap-2 text-sm text-[var(--air-muted)]">
+          <Link to="/" className="font-semibold text-[var(--air-ink)]">
+            Главная
+          </Link>
+          <span>/</span>
+          <span>Рейсы</span>
+        </div>
 
-      {/* Title — like reference: "Выберите рейс: City1 → City2 Date" */}
-      <div className="mb-6">
-        <h1 className="text-xl md:text-2xl font-bold text-fg">
-          {fromCity || toCity ? (
-            <>
-              Выберите рейс:{' '}
-              <span className="text-sky">{fromCity}</span>
-              {fromCity && toCity && (
-                <span className="text-fg-subtle mx-2">→</span>
-              )}
-              <span className="text-sky">{toCity}</span>
-              {date && (
-                <span className="text-fg ml-3">
-                  {format(new Date(date), 'd MMMM yyyy', { locale: ru })}
-                </span>
-              )}
-            </>
-          ) : (
-            'Все доступные рейсы'
-          )}
-        </h1>
-      </div>
+        <section className="air-dark-card px-5 py-6 md:px-8 md:py-8">
+          <div className="grid gap-6 xl:grid-cols-[1.04fr_0.96fr] xl:items-end">
+            <div>
+              <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
+                Выбор рейса
+              </div>
+              <h1 className="mt-4 text-4xl font-extrabold tracking-[-0.05em] md:text-5xl">
+                {fromCity} → {toCity}
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/72 md:text-base">
+                Сравните время вылета, тариф и условия по каждому рейсу, затем перейдите к выбору места в салоне.
+              </p>
 
-      {/* Tariff headers — desktop: sticky table header like Pobeda */}
-      {!loading && flights.length > 0 && (
-        <div className="hidden lg:block mb-4">
-          <div className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-0 border border-dark-600 rounded-xl overflow-hidden">
-            {/* Sort column */}
-            <div className="bg-dark-800 p-4 border-r border-dark-600">
-              <div className="text-xs text-fg-subtle mb-2">Сортировать</div>
-              <div className="flex flex-col gap-1">
-                {[
-                  { key: 'price' as const, label: 'По цене' },
-                  { key: 'time' as const, label: 'По времени' },
-                  { key: 'duration' as const, label: 'По длительности' },
-                ].map(s => (
-                  <button
-                    key={s.key}
-                    onClick={() => setSortBy(s.key)}
-                    className={`text-left text-sm px-2 py-1 rounded transition-all ${
-                      sortBy === s.key ? 'text-sky bg-sky/10' : 'text-fg-muted hover:text-fg'
-                    }`}
-                  >
-                    {s.label} {sortBy === s.key && '▼'}
-                  </button>
-                ))}
+              <div className="mt-5 air-meta-row">
+                <div className="air-dark-pill">
+                  <Clock3 className="h-4 w-4 text-[var(--air-yellow)]" />
+                  {date ? format(new Date(date), 'd MMMM yyyy', { locale: ru }) : 'Ближайшие вылеты'}
+                </div>
+                {trip === 'roundtrip' && returnDate && (
+                  <div className="air-dark-pill">
+                    <ChevronDown className="h-4 w-4 rotate-[-90deg] text-[var(--air-yellow)]" />
+                    Обратно {format(new Date(returnDate), 'd MMMM', { locale: ru })}
+                  </div>
+                )}
+                <div className="air-dark-pill">
+                  <Users className="h-4 w-4 text-[var(--air-yellow)]" />
+                  {passengersLabel}
+                </div>
+                <div className="air-dark-pill">
+                  <Ticket className="h-4 w-4 text-[var(--air-yellow)]" />
+                  {cabinLabel}
+                </div>
               </div>
             </div>
 
-            {/* Tariff columns */}
-            {TARIFFS.map((tariff) => (
-              <div key={tariff.id} className={`${tariff.headerBg} p-4 border-r border-dark-600 last:border-r-0 relative`}>
-                {tariff.badge && (
-                  <div className="absolute -top-0 left-1/2 -translate-x-1/2 -translate-y-0">
-                    <span className="bg-neon-blue text-white text-[10px] font-bold px-3 py-1 rounded-b-lg uppercase tracking-wider">
-                      {tariff.badge}
-                    </span>
-                  </div>
-                )}
-                <h3 className="text-base font-bold text-fg text-center mb-3 mt-1">{tariff.name}</h3>
-                {showTariffInfo && (
-                  <div className="space-y-1.5">
-                    {tariff.features.map((f, i) => (
-                      <div key={i} className="flex items-start gap-1.5 text-[11px] text-fg-muted">
-                        <FeatureIcon type={f.icon} />
-                        <span>{f.text}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Доступно</div>
+                <div className="mt-3 text-3xl font-extrabold text-white">
+                  {visibleTotal} {visibleTotal === 1 ? 'рейс' : visibleTotal < 5 ? 'рейса' : 'рейсов'}
+                </div>
               </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Выбранный класс</div>
+                <div className="mt-3 text-3xl font-extrabold text-white">{cabinLabel}</div>
+              </div>
+            </div>
+          </div>
+
+          {usingMockData && (
+            <div className="mt-5 inline-flex rounded-full border border-white/12 bg-white/8 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/68">
+              Показаны доступные варианты для выбранного направления
+            </div>
+          )}
+        </section>
+
+        <section className="mt-6">
+          <BookingSearchPanel
+            variant="compact"
+            initialFrom={from}
+            initialTo={to}
+            initialDate={date}
+            initialReturnDate={returnDate}
+            initialTripType={trip}
+            initialPassengers={passengers}
+            initialCabin={cabin}
+            title="Изменить параметры"
+            description="Уточните маршрут, дату и класс обслуживания прямо на этой странице."
+          />
+        </section>
+
+        <section className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-3">
+            {sortOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => setSortBy(option.key)}
+                className={[
+                  'air-pill transition-colors',
+                  sortBy === option.key
+                    ? 'border-[rgba(41,80,215,0.18)] bg-[rgba(79,130,255,0.12)] text-[var(--air-blue-deep)]'
+                    : '',
+                ].join(' ')}
+              >
+                <Filter className="h-4 w-4" />
+                {option.label}
+              </button>
             ))}
           </div>
 
-          <button
-            onClick={() => setShowTariffInfo(!showTariffInfo)}
-            className="text-[11px] text-fg-subtle hover:text-fg mt-1 transition-colors"
-          >
-            {showTariffInfo ? 'Скрыть условия тарифов ▲' : 'Показать условия тарифов ▼'}
-          </button>
-        </div>
-      )}
+          <div className="air-pill">
+            <Plane className="h-4 w-4 text-[var(--air-blue-deep)]" />
+            {visibleTotal} {visibleTotal === 1 ? 'рейс после фильтра' : visibleTotal < 5 ? 'рейса после фильтра' : 'рейсов после фильтра'}
+          </div>
+        </section>
 
-      {/* Loading */}
-      {loading && (
-        <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <Loader2 className="w-7 h-7 text-sky animate-spin" />
-          <p className="text-sm text-fg-subtle">Ищем рейсы...</p>
-        </div>
-      )}
-
-      {/* Error */}
-      {error && !loading && (
-        <div className="text-center py-20">
-          <p className="text-neon-red text-sm">{error}</p>
-        </div>
-      )}
-
-      {/* No results */}
-      {!loading && !error && flights.length === 0 && (
-        <div className="text-center py-20">
-          <Plane className="w-10 h-10 text-dark-500 mx-auto mb-3" />
-          <p className="text-fg-muted">Рейсов не найдено</p>
-          <p className="text-fg-subtle text-sm mt-1 mb-4">Попробуйте изменить параметры поиска</p>
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-neon-blue text-white text-sm font-medium rounded-lg hover:bg-neon-blue/90 transition-all"
-          >
-            <Search className="w-3.5 h-3.5" />
-            Новый поиск
-          </Link>
-        </div>
-      )}
-
-      {/* Flight rows */}
-      <div className="space-y-3">
-        {sortedFlights.map((flight) => {
-          const depTime = new Date(flight.departureTime);
-          const arrTime = flight.arrivalTime ? new Date(flight.arrivalTime) : null;
-          const duration = flight.durationMinutes;
-          const depCode = flight.departureAirport.code;
-          const arrCode = flight.destinationAirport.code;
-
-          return (
-            <div
-              key={flight.id}
-              className="border border-dark-600 rounded-xl overflow-hidden hover:border-dark-500 transition-all"
-            >
-              {/* Desktop: grid with tariff columns */}
-              <div className="hidden lg:grid grid-cols-[1fr_1fr_1fr_1fr]">
-                {/* Flight info column */}
-                <div className="bg-dark-800 p-4 border-r border-dark-600">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-mono text-sky bg-sky/10 px-2 py-0.5 rounded">{flight.flightNumber}</span>
-                    {flight.aircraftType && (
-                      <span className="text-[10px] text-fg-subtle font-mono bg-dark-700 px-1.5 py-0.5 rounded">{flight.aircraftType}</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3 mb-1">
-                    <div className="text-lg font-bold text-fg">
-                      {format(depTime, 'HH:mm')}
-                    </div>
-                    <div className="text-fg-faint">–</div>
-                    <div className="text-lg font-bold text-fg">
-                      {arrTime ? format(arrTime, 'HH:mm') : '—'}
-                    </div>
-                    {duration != null && (
-                      <div className="text-xs text-fg-subtle ml-auto bg-dark-700 px-2 py-0.5 rounded">
-                        {formatDuration(duration)}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="text-xs text-fg-muted">
-                    {flight.departureAirport.city} {depCode} – {flight.destinationAirport.city} {arrCode}
-                  </div>
-                  <div className="text-[11px] text-neon-green mt-1">
-                    Прямой рейс
-                  </div>
-                </div>
-
-                {/* Tariff price columns */}
-                {TARIFFS.map((tariff) => {
-                  const price = getTariffPrice(flight, tariff.id);
-                  const isAvailable = price != null;
-                  return (
-                    <button
-                      key={tariff.id}
-                      onClick={() => isAvailable && navigate(`/flights/${flight.id}/seats`)}
-                      disabled={!isAvailable}
-                      className={`p-4 border-r border-dark-600 last:border-r-0 transition-all text-center ${
-                        isAvailable
-                          ? `${tariff.bgColor} hover:bg-opacity-80 cursor-pointer group`
-                          : 'bg-dark-800/50 cursor-not-allowed opacity-40'
-                      }`}
-                    >
-                      {isAvailable ? (
-                        <>
-                          <div className="text-2xl font-bold text-fg group-hover:text-sky transition-colors">
-                            {formatPrice(price)}
-                          </div>
-                          <div className="text-[10px] text-fg-subtle mt-1 uppercase">
-                            {tariff.id === 'business'
-                              ? `${flight.businessSeatsAvail ?? 0} мест`
-                              : `${flight.economySeatsAvail ?? 0} мест`}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-sm text-fg-subtle">Нет мест</div>
-                      )}
-                    </button>
-                  );
-                })}
+        <section className="mt-6 space-y-4">
+          {loading ? (
+            <div className="air-surface-card flex items-center justify-center gap-3 px-5 py-14 text-[var(--air-muted)]">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Загружаем рейсы...
+            </div>
+          ) : sortedFlights.length === 0 ? (
+            <div className="air-surface-card px-6 py-12 text-center">
+              <div className="text-2xl font-extrabold text-[var(--air-ink)]">Рейсы не найдены</div>
+              <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">
+                Для выбранного маршрута сейчас нет подходящих вариантов. Измените дату или направление.
               </div>
-
-              {/* Mobile: compact card */}
-              <div
-                className="lg:hidden bg-dark-800 p-4 cursor-pointer"
-                onClick={() => navigate(`/flights/${flight.id}/seats`)}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono text-sky bg-sky/10 px-2 py-0.5 rounded">{flight.flightNumber}</span>
-                    {duration != null && (
-                      <span className="text-[11px] text-fg-subtle bg-dark-700 px-2 py-0.5 rounded">
-                        {formatDuration(duration)}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-neon-green">Прямой рейс</span>
-                </div>
-
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg font-bold text-fg">{format(depTime, 'HH:mm')}</span>
-                  <span className="text-fg-faint">–</span>
-                  <span className="text-lg font-bold text-fg">{arrTime ? format(arrTime, 'HH:mm') : '—'}</span>
-                </div>
-
-                <div className="text-xs text-fg-muted mb-3">
-                  {flight.departureAirport.city} {depCode} – {flight.destinationAirport.city} {arrCode}
-                </div>
-
-                {/* Mobile tariff prices row */}
-                <div className="grid grid-cols-3 gap-2">
-                  {TARIFFS.map((tariff) => {
-                    const price = getTariffPrice(flight, tariff.id);
-                    return (
-                      <div key={tariff.id} className={`rounded-lg p-2 text-center ${tariff.bgColor} border ${tariff.color}`}>
-                        <div className="text-[10px] text-fg-subtle font-medium mb-0.5">{tariff.name}</div>
-                        <div className="text-sm font-bold text-fg">
-                          {price != null ? formatPrice(price) : '—'}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="mt-6 flex justify-center">
+                <Link to="/#search" className="air-secondary-button">
+                  Вернуться к поиску
+                </Link>
               </div>
             </div>
-          );
-        })}
+          ) : (
+            sortedFlights.map((flight) => (
+              <article key={flight.id} className="air-surface-card-strong px-5 py-5 md:px-6 md:py-6">
+                <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="air-pill">
+                        <Plane className="h-4 w-4 text-[var(--air-blue-deep)]" />
+                        {flight.flightNumber}
+                      </div>
+                      <div className="air-pill">Прямой рейс</div>
+                      <div className="air-pill">
+                        <Clock3 className="h-4 w-4 text-[var(--air-blue-deep)]" />
+                        {formatDuration(flight.durationMinutes)}
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-end">
+                      <div>
+                        <div className="text-5xl font-extrabold tracking-[-0.06em] text-[var(--air-ink)]">
+                          {format(new Date(flight.departureTime), 'HH:mm')}
+                        </div>
+                        <div className="mt-2 text-sm font-bold text-[var(--air-ink)]">
+                          {flight.departureAirport.city} ({flight.departureAirport.code})
+                        </div>
+                        <div className="mt-1 text-sm text-[var(--air-muted)]">{flight.departureAirport.name}</div>
+                      </div>
+
+                      <div className="flex min-w-[170px] flex-col items-center gap-2 text-center">
+                        <div className="flex w-full items-center gap-3 text-[var(--air-muted)]">
+                          <div className="h-px flex-1 bg-[rgba(17,24,39,0.12)]" />
+                          <ArrowRight className="h-4 w-4 shrink-0" />
+                          <div className="h-px flex-1 bg-[rgba(17,24,39,0.12)]" />
+                        </div>
+                        <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-muted)]">
+                          Без пересадок
+                        </div>
+                      </div>
+
+                      <div className="md:text-right">
+                        <div className="text-5xl font-extrabold tracking-[-0.06em] text-[var(--air-ink)]">
+                          {flight.arrivalTime ? format(new Date(flight.arrivalTime), 'HH:mm') : '—'}
+                        </div>
+                        <div className="mt-2 text-sm font-bold text-[var(--air-ink)]">
+                          {flight.destinationAirport.city} ({flight.destinationAirport.code})
+                        </div>
+                        <div className="mt-1 text-sm text-[var(--air-muted)]">{flight.destinationAirport.name}</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                      <div className="air-data-card">
+                        <div className="air-quiet-label">Вылет</div>
+                        <strong>{format(new Date(flight.departureTime), 'd MMMM, EEE', { locale: ru })}</strong>
+                      </div>
+                      <div className="air-data-card">
+                        <div className="air-quiet-label">Места в экономе</div>
+                        <strong>{flight.economySeatsAvail ?? 0}</strong>
+                      </div>
+                      <div className="air-data-card">
+                        <div className="air-quiet-label">Места в бизнесе</div>
+                        <strong>{flight.businessSeatsAvail ?? 0}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 lg:grid-cols-3">
+                    {getFareCards(flight).map((fare) => (
+                      <button
+                        key={fare.id}
+                        type="button"
+                        onClick={() => navigate(`/flights/${flight.id}/seats?fare=${fare.id}`)}
+                        className={[
+                          'rounded-[26px] p-5 text-left transition-transform duration-300 hover:-translate-y-[1px]',
+                          fare.id === preferredFare
+                            ? 'air-dark-card'
+                            : 'border border-[var(--air-border)] bg-[rgba(255,255,255,0.76)]',
+                        ].join(' ')}
+                        disabled={fare.price == null}
+                      >
+                        <div
+                          className="text-[11px] font-extrabold uppercase tracking-[0.18em]"
+                          style={fare.id === preferredFare ? { color: 'rgba(248,245,238,0.62)' } : { color: 'var(--air-muted)' }}
+                        >
+                          {fare.subtitle}
+                        </div>
+                        <div
+                          className="mt-3 text-2xl font-extrabold tracking-[-0.05em]"
+                          style={fare.id === preferredFare ? { color: 'white' } : { color: 'var(--air-ink)' }}
+                        >
+                          {fare.title}
+                        </div>
+                        <div
+                          className="mt-2 text-3xl font-extrabold tracking-[-0.05em]"
+                          style={fare.id === preferredFare ? { color: 'white' } : { color: 'var(--air-ink)' }}
+                        >
+                          {formatPrice(fare.price)}
+                        </div>
+
+                        <div className="air-divider my-4" />
+
+                        <div className="space-y-3">
+                          {fare.items.map((item) => (
+                            <div
+                              key={item}
+                              className="flex items-start gap-2 text-sm font-semibold"
+                              style={fare.id === preferredFare ? { color: 'rgba(248,245,238,0.88)' } : { color: 'var(--air-ink)' }}
+                            >
+                              <span className="mt-1 h-2 w-2 rounded-full bg-[var(--air-yellow)]" />
+                              <span>{item}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div
+                          className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold"
+                          style={fare.id === preferredFare ? { color: 'white' } : { color: 'var(--air-ink)' }}
+                        >
+                          Выбрать и перейти к месту
+                          <ArrowRight className="h-4 w-4" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </article>
+            ))
+          )}
+        </section>
+
+        {pagination && pagination.page < pagination.totalPages && (
+          <div className="mt-6 flex justify-center">
+            <button type="button" onClick={loadMore} className="air-secondary-button" disabled={loadingMore}>
+              {loadingMore ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Загружаем еще рейсы
+                </>
+              ) : (
+                'Показать еще'
+              )}
+            </button>
+          </div>
+        )}
       </div>
-
-      {/* Load More */}
-      {hasMore && !loading && (
-        <div className="flex justify-center mt-6">
-          <button
-            onClick={loadMore}
-            disabled={loadingMore}
-            className="flex items-center gap-2 px-6 py-2.5 bg-dark-700 border border-dark-500 text-fg-secondary text-sm rounded-lg
-                       hover:border-sky/50 hover:text-fg transition-all disabled:opacity-50"
-          >
-            {loadingMore ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-            Показать ещё ({total - flights.length})
-          </button>
-        </div>
-      )}
-
-      {/* Footer note */}
-      {!loading && flights.length > 0 && (
-        <div className="mt-4 flex items-center justify-between text-[11px] text-fg-subtle">
-          <span>* Условия возврата зависят от тарифа и времени до вылета</span>
-          <Link to="/" className="flex items-center gap-1 text-fg-muted hover:text-sky transition-colors">
-            <Search className="w-3 h-3" />
-            Изменить поиск
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

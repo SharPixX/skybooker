@@ -1,97 +1,219 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
-import prisma from './lib/prisma';
+import { randomUUID } from 'crypto';
+const { Client } = require('pg') as { Client: new (config: { connectionString: string; ssl: { rejectUnauthorized: boolean } }) => any };
 
-/**
- * Seed ONLY seats for flights that don't have them yet.
- * Handles connection drops by working in small batches with reconnection.
- */
+type Primitive = string | number | Date | boolean | null;
+
+interface FlightWithoutSeats {
+  id: string;
+  departureCode: string;
+  destinationCode: string;
+}
+
+const INSERT_BATCH_SIZE = 64;
+const PAUSE_BETWEEN_FLIGHTS_MS = 120;
+
+function getDatabaseUrl(): string {
+  const value = process.env.DATABASE_URL;
+  if (!value) {
+    throw new Error('DATABASE_URL is not configured');
+  }
+  return value;
+}
+
+async function runQuery<T = unknown>(text: string, values: Primitive[] = []): Promise<T[]> {
+  const url = getDatabaseUrl();
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const client = new Client({
+      connectionString: url,
+      ssl: { rejectUnauthorized: false },
+    });
+
+    client.on('error', () => {});
+
+    try {
+      await client.connect();
+      const result = await client.query(text, values);
+      await client.end();
+      return result.rows as T[];
+    } catch (error) {
+      await client.end().catch(() => {});
+
+      if (attempt === 3) {
+        throw error;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 900 * attempt));
+    }
+  }
+
+  return [];
+}
+
+async function insertRows(table: string, columns: string[], rows: Primitive[][], batchSize: number) {
+  for (let start = 0; start < rows.length; start += batchSize) {
+    const batch = rows.slice(start, start + batchSize);
+    const values: Primitive[] = [];
+
+    const placeholders = batch.map((row, rowIndex) => {
+      const rowPlaceholders = row.map((_value, columnIndex) => {
+        values.push(row[columnIndex]);
+        return `$${rowIndex * columns.length + columnIndex + 1}`;
+      });
+
+      return `(${rowPlaceholders.join(', ')})`;
+    });
+
+    await runQuery(
+      `INSERT INTO "${table}" (${columns.map((column) => `"${column}"`).join(', ')}) VALUES ${placeholders.join(', ')}`,
+      values,
+    );
+  }
+}
+
+function seatStatusFor(row: number, letter: string): 'AVAILABLE' | 'LOCKED' | 'BOOKED' {
+  if ((row === 2 && letter === 'A') || (row === 8 && letter === 'F') || (row === 19 && letter === 'C')) {
+    return 'BOOKED';
+  }
+
+  if ((row === 11 && letter === 'A') || (row === 12 && letter === 'F')) {
+    return 'LOCKED';
+  }
+
+  return 'AVAILABLE';
+}
+
+function getPricing(from: string, to: string) {
+  const routeKey = `${from}-${to}`;
+
+  switch (routeKey) {
+    case 'SVO-DXB':
+    case 'DXB-SVO':
+      return { economyBase: 14500, businessBase: 45900 };
+    case 'VKO-AYT':
+    case 'AYT-VKO':
+      return { economyBase: 12800, businessBase: 36900 };
+    case 'SVO-OVB':
+    case 'OVB-SVO':
+      return { economyBase: 9800, businessBase: 28400 };
+    case 'SVO-SVX':
+    case 'SVX-SVO':
+      return { economyBase: 7200, businessBase: 20400 };
+    case 'DME-LED':
+    case 'LED-DME':
+      return { economyBase: 7800, businessBase: 18600 };
+    case 'LED-AER':
+    case 'AER-LED':
+      return { economyBase: 6900, businessBase: 21400 };
+    case 'DME-KZN':
+    case 'KZN-DME':
+      return { economyBase: 5400, businessBase: 17400 };
+    default:
+      return { economyBase: 6490, businessBase: 22900 };
+  }
+}
+
+function buildSeatRows(flightId: string, from: string, to: string) {
+  const now = new Date();
+  const pricing = getPricing(from, to);
+  const rows: Primitive[][] = [];
+
+  for (let row = 1; row <= 4; row += 1) {
+    for (const letter of ['A', 'C', 'D', 'F']) {
+      const windowBonus = letter === 'A' || letter === 'F' ? 400 : 0;
+      const rowDiscount = (row - 1) * 450;
+
+      rows.push([
+        randomUUID(),
+        flightId,
+        `${row}${letter}`,
+        'business',
+        row,
+        letter,
+        seatStatusFor(row, letter),
+        pricing.businessBase + windowBonus - rowDiscount,
+        1,
+        now,
+        now,
+      ]);
+    }
+  }
+
+  for (let row = 5; row <= 30; row += 1) {
+    for (const letter of ['A', 'B', 'C', 'D', 'E', 'F']) {
+      const windowBonus = letter === 'A' || letter === 'F' ? 350 : 0;
+      const exitBonus = row === 12 || row === 25 ? 950 : 0;
+      const rowDiscount = Math.floor((row - 5) / 5) * 180;
+
+      rows.push([
+        randomUUID(),
+        flightId,
+        `${row}${letter}`,
+        'economy',
+        row,
+        letter,
+        seatStatusFor(row, letter),
+        pricing.economyBase + windowBonus + exitBonus - rowDiscount,
+        1,
+        now,
+        now,
+      ]);
+    }
+  }
+
+  return rows;
+}
+
 async function seedSeats() {
-  console.log('💺 Seeding seats for flights without seats...');
+  console.log('Seeding seats for flights without seats...');
 
-  // Get flights that have NO seats
-  const flightsWithoutSeats = await prisma.$queryRaw<Array<{ id: string; flightNumber: string }>>`
-    SELECT f.id, f."flightNumber"
+  const flightsWithoutSeats = await runQuery<FlightWithoutSeats>(`
+    SELECT
+      f.id,
+      dep.code AS "departureCode",
+      dest.code AS "destinationCode"
     FROM "Flight" f
+    JOIN "Airport" dep ON dep.id = f."departureAirportId"
+    JOIN "Airport" dest ON dest.id = f."destinationAirportId"
     LEFT JOIN "Seat" s ON s."flightId" = f.id
-    GROUP BY f.id, f."flightNumber"
+    GROUP BY f.id, dep.code, dest.code
     HAVING COUNT(s.id) = 0
-    ORDER BY f."flightNumber"
-  `;
+    ORDER BY f."departureTime" ASC
+  `);
 
-  console.log(`Found ${flightsWithoutSeats.length} flights without seats`);
+  console.log(`Flights without seats: ${flightsWithoutSeats.length}`);
 
   if (flightsWithoutSeats.length === 0) {
-    console.log('✅ All flights already have seats!');
+    console.log('All flights already have seats.');
     return;
   }
 
-  const seatLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
-  const rows = 5;
-  const BATCH = 5; // 5 flights × 30 seats = 150 rows per insert (small!)
-  let created = 0;
+  for (let index = 0; index < flightsWithoutSeats.length; index += 1) {
+    const flight = flightsWithoutSeats[index];
+    const seatRows = buildSeatRows(flight.id, flight.departureCode, flight.destinationCode);
 
-  for (let i = 0; i < flightsWithoutSeats.length; i += BATCH) {
-    const batch = flightsWithoutSeats.slice(i, i + BATCH);
-    const seats: Array<{
-      flightId: string;
-      seatNumber: string;
-      price: number;
-      status: 'AVAILABLE';
-    }> = [];
+    await insertRows(
+      'Seat',
+      ['id', 'flightId', 'seatNumber', 'class', 'row', 'letter', 'status', 'price', 'version', 'createdAt', 'updatedAt'],
+      seatRows,
+      INSERT_BATCH_SIZE,
+    );
 
-    for (const flight of batch) {
-      for (let row = 1; row <= rows; row++) {
-        for (const letter of seatLetters) {
-          const seatNumber = `${row}${letter}`;
-          const basePrice = flight.flightNumber.startsWith('SU') ? 5500 : 3800;
-          const price = basePrice - (row - 1) * 300 + (letter <= 'C' ? 500 : 0);
-          seats.push({
-            flightId: flight.id,
-            seatNumber,
-            price,
-            status: 'AVAILABLE' as const,
-          });
-        }
-      }
+    if ((index + 1) % 10 === 0 || index + 1 === flightsWithoutSeats.length) {
+      console.log(`Seeded seats for ${index + 1}/${flightsWithoutSeats.length} flights`);
     }
 
-    try {
-      await prisma.seat.createMany({ data: seats });
-      created += batch.length;
-      if (created % 50 === 0 || created >= flightsWithoutSeats.length) {
-        console.log(`  💺 ${created}/${flightsWithoutSeats.length} flights done (${created * 30} seats)`);
-      }
-    } catch (err: any) {
-      console.error(`  ❌ Error at flight ${i}: ${err.message}`);
-      console.log('  Reconnecting and retrying...');
-      await prisma.$disconnect();
-      await new Promise((r) => setTimeout(r, 2000));
-      // Retry this batch
-      try {
-        await prisma.seat.createMany({ data: seats });
-        created += batch.length;
-        console.log(`  ✅ Retry succeeded at flight ${i}`);
-      } catch (err2: any) {
-        console.error(`  ❌ Retry also failed: ${err2.message}`);
-        console.log(`  Skipping batch at index ${i}, re-run script to continue`);
-      }
-    }
-
-    // Small delay to avoid overwhelming the connection
-    if (i % 50 === 0 && i > 0) {
-      await new Promise((r) => setTimeout(r, 500));
-    }
+    await new Promise((resolve) => setTimeout(resolve, PAUSE_BETWEEN_FLIGHTS_MS));
   }
 
-  const totalSeats = await prisma.seat.count();
-  console.log(`\n✅ Done! Total seats in DB: ${totalSeats}`);
+  const totalSeats = await runQuery<{ count: string }>('SELECT COUNT(*)::text AS count FROM "Seat"');
+  console.log(`Done. Total seats in DB: ${totalSeats[0]?.count ?? '0'}`);
 }
 
-seedSeats()
-  .catch((e) => {
-    console.error('❌ Failed:', e);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+seedSeats().catch((error) => {
+  console.error('Seat seeding failed:', error);
+  process.exit(1);
+});

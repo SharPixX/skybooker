@@ -1,208 +1,316 @@
-import { useState, Suspense } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, ArrowRightLeft, ChevronRight, Shield, Clock, Headphones } from 'lucide-react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import CityInput from '../components/CityInput';
-import { DatePicker } from '../components/DatePicker';
-import LidarPlaneModel from '../components/LidarPlaneModel';
+import { Link } from 'react-router-dom';
+import { ArrowRight, BadgeCheck, Clock3, LifeBuoy, Luggage, ShieldCheck, Ticket } from 'lucide-react';
+import BookingSearchPanel from '../components/BookingSearchPanel';
 
-const POPULAR_ROUTES = [
-  { from: 'Москва (SVO)', to: 'Санкт-Петербург (LED)', image: '/cities/spb.jpg', label: 'Санкт-Петербург', price: 'от 3 800 ₽' },
-  { from: 'Москва (SVO)', to: 'Сочи (AER)', image: '/cities/sochi.jpg', label: 'Сочи', price: 'от 3 800 ₽' },
-  { from: 'Москва (VKO)', to: 'Новосибирск (OVB)', image: '/cities/novosibirsk.jpg', label: 'Новосибирск', price: 'от 2 300 ₽' },
-  { from: 'Санкт-Петербург (LED)', to: 'Казань (KZN)', image: '/cities/kazan.jpg', label: 'Казань', price: 'от 2 300 ₽' },
-];
+const quickActions = [
+  {
+    title: 'Управление бронированием',
+    description: 'Откройте билеты, статус оплаты и последние поездки в кабинете пассажира.',
+    to: '/profile',
+    icon: Ticket,
+  },
+  {
+    title: 'Багаж и правила',
+    description: 'Проверьте нормы багажа, обмен, возврат и условия тарифа до покупки билета.',
+    to: '/help',
+    icon: Luggage,
+  },
+  {
+    title: 'Документы и условия',
+    description: 'Правила покупки, удержания брони, оплаты и поездки собраны в одном месте.',
+    to: '/legal',
+    icon: ShieldCheck,
+  },
+] as const;
+
+const destinations = [
+  {
+    city: 'Сочи',
+    route: 'Москва → Сочи',
+    price: 'от 5 490 ₽',
+    subtitle: 'Короткий прямой маршрут к морю',
+    params: 'from=Москва%20(SVO)&to=Сочи%20(AER)&date=2026-03-18&trip=oneway&passengers=1&cabin=economy',
+    style: {
+      background:
+        'linear-gradient(155deg, rgba(20,39,71,0.96), rgba(55,126,178,0.84) 54%, rgba(255,213,79,0.48))',
+    },
+  },
+  {
+    city: 'Санкт-Петербург',
+    route: 'Москва → Санкт-Петербург',
+    price: 'от 7 802 ₽',
+    subtitle: 'Деловой и городской маршрут на каждый день',
+    params: 'from=Москва%20(DME)&to=Санкт-Петербург%20(LED)&date=2026-03-18&trip=oneway&passengers=1&cabin=comfort',
+    style: {
+      background:
+        'linear-gradient(155deg, rgba(30,32,57,0.98), rgba(78,112,180,0.86) 56%, rgba(255,255,255,0.3))',
+    },
+  },
+  {
+    city: 'Дубай',
+    route: 'Москва → Дубай',
+    price: 'от 12 500 ₽',
+    subtitle: 'Прямой вылет без лишних пересадок',
+    params: 'from=Москва%20(SVO)&to=Дубай%20(DXB)&date=2026-03-18&trip=oneway&passengers=1&cabin=business',
+    style: {
+      background:
+        'linear-gradient(155deg, rgba(31,23,63,0.98), rgba(81,70,164,0.82) 50%, rgba(255,170,90,0.6))',
+    },
+  },
+  {
+    city: 'Казань',
+    route: 'Москва → Казань',
+    price: 'от 5 400 ₽',
+    subtitle: 'Короткий перелет на выходные',
+    params: 'from=Москва%20(DME)&to=Казань%20(KZN)&date=2026-03-18&trip=oneway&passengers=1&cabin=economy',
+    style: {
+      background:
+        'linear-gradient(155deg, rgba(12,46,55,0.98), rgba(32,120,109,0.82) 52%, rgba(255,213,79,0.42))',
+    },
+  },
+] as const;
+
+const fareFamilies = [
+  {
+    title: 'Light',
+    subtitle: 'Для короткой поездки',
+    features: ['Ручная кладь', 'Место за доплату', 'Обмен по правилам тарифа'],
+  },
+  {
+    title: 'Comfort',
+    subtitle: 'Самый удобный баланс',
+    features: ['Багаж 23 кг', 'Стандартный выбор места', 'Изменение даты с доплатой'],
+  },
+  {
+    title: 'Business',
+    subtitle: 'Приоритет и пространство',
+    features: ['Приоритетная регистрация', 'Бизнес-зал', 'Гибкие условия по маршруту'],
+  },
+] as const;
+
+const serviceHighlights = [
+  {
+    title: 'Багаж и ручная кладь',
+    description: 'Нормы багажа лучше проверить заранее: они зависят от тарифа и маршрута.',
+    icon: Luggage,
+  },
+  {
+    title: 'Возврат и обмен',
+    description: 'Условия возврата и изменения даты всегда видны до оплаты билета.',
+    icon: BadgeCheck,
+  },
+  {
+    title: 'Поддержка по поездке',
+    description: 'После покупки билет, бронь и статусы доступны в кабинете пассажира.',
+    icon: LifeBuoy,
+  },
+] as const;
 
 export default function HomePage() {
-  const navigate = useNavigate();
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [date, setDate] = useState('');
-
-  const handleSearch = () => {
-    const params = new URLSearchParams();
-    if (from) params.set('from', from);
-    if (to) params.set('to', to);
-    if (date) params.set('date', date);
-    navigate(`/flights?${params.toString()}`);
-  };
-
-  const handleSwap = () => {
-    setFrom(to);
-    setTo(from);
-  };
-
-  const handlePopular = (route: typeof POPULAR_ROUTES[0]) => {
-    const params = new URLSearchParams();
-    params.set('from', route.from);
-    params.set('to', route.to);
-    navigate(`/flights?${params.toString()}`);
-  };
-
   return (
-    <div className="min-h-[calc(100vh-64px)] flex flex-col">
-      {/* Hero */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-neon-blue/5 via-transparent to-transparent" />
-        <div className="absolute top-10 left-1/3 w-[600px] h-[600px] bg-sky/3 rounded-full blur-3xl" />
-        <div className="absolute top-40 right-1/4 w-[400px] h-[400px] bg-neon-purple/3 rounded-full blur-3xl" />
+    <div className="air-page">
+      <div className="air-container">
+        <section id="search" className="air-dark-card overflow-hidden px-5 py-6 md:px-8 md:py-8">
+          <div className="air-fade-up">
+            <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
+              Yandex Air
+            </div>
+            <div className="mt-5 grid gap-6 xl:grid-cols-[0.78fr_1.22fr] xl:items-end">
+              <div>
+                <h1 className="max-w-3xl text-5xl font-extrabold leading-[0.92] tracking-[-0.07em] md:text-7xl">
+                  Билеты Yandex Air
+                  <span className="mt-2 block air-display">без лишних слов</span>
+                </h1>
+                <p className="mt-6 max-w-2xl text-sm leading-relaxed text-white/72 md:text-base">
+                  Спокойный airline-сервис, где поиск, тариф и следующий шаг читаются сразу, без перегруженных экранов.
+                </p>
+              </div>
 
-        <div className="relative max-w-5xl mx-auto px-4 -mt-10 pb-0 text-center flex flex-col items-center">
-          
-          <div className="w-full h-[300px] sm:h-[400px] relative -mb-20 pointer-events-none">
-            <Canvas camera={{ position: [15, 8, -15], fov: 60 }} gl={{ alpha: true }} style={{ background: 'transparent' }}>
-              <ambientLight intensity={0.5} />
-              <Suspense fallback={null}>
-                <LidarPlaneModel />
-              </Suspense>
-              <OrbitControls 
-                enablePan={false} 
-                enableZoom={false}
-                enableRotate={false}
-                autoRotate={true}
-                autoRotateSpeed={2.0}
-                maxPolarAngle={Math.PI / 1.5}
-                minPolarAngle={Math.PI / 4}
-              />
-            </Canvas>
-          </div>
-
-          {/* Search form */}
-          <div className="relative z-20 w-full max-w-5xl mx-auto -mt-6 md:-mt-8">
-            <div className="relative bg-[#11141D]/90 backdrop-blur-xl border border-white/10 rounded-[2rem] p-3 shadow-2xl md:mx-0 mx-4">
-              
-              <div className="flex flex-col lg:flex-row w-full gap-2 relative">
-                
-                {/* Route Wrapper (From -> To) */}
-                <div className="flex flex-col sm:flex-row flex-[2] relative gap-2">
-                  <CityInput label="Откуда" placeholder="Город вылета" value={from} onChange={setFrom} type="from" />
-
-                  {/* Swap Button - Desktop Center */}
-                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 hidden sm:flex items-center justify-center bg-[#11141D] rounded-full p-1">
-                    <button
-                      onClick={handleSwap}
-                      className="flex items-center justify-center w-10 h-10 bg-[#090C15] hover:bg-[#1A1D23] border border-white/5 rounded-full transition-all duration-300 focus:outline-none"
-                      title="Поменять местами"
-                    >
-                      <ArrowRightLeft className="w-4 h-4 text-[#4E5466] hover:text-white transition-colors" />
-                    </button>
-                  </div>
-
-                  {/* Swap Button - Mobile Interlaid */}
-                  <div className="flex sm:hidden items-center justify-center -my-3 relative z-10 bg-[#11141D] rounded-full p-1 self-center">
-                    <button
-                      onClick={handleSwap}
-                      className="flex items-center justify-center w-10 h-10 bg-[#090C15] border border-white/5 rounded-full focus:outline-none active:scale-95 transition-transform"
-                    >
-                      <ArrowRightLeft className="w-4 h-4 text-[#4E5466] rotate-90" />
-                    </button>
-                  </div>
-
-                  <CityInput label="Куда" placeholder="Город прибытия" value={to} onChange={setTo} type="to" />
+              <div className="flex flex-wrap gap-3 xl:justify-end">
+                <div className="air-dark-pill">
+                  <Clock3 className="h-4 w-4 text-[var(--air-yellow)]" />
+                  Быстрый путь от поиска до билета
                 </div>
-
-                {/* Date Wrapper */}
-                <div className="flex-[1] min-w-[200px]">
-                  <DatePicker value={date} onChange={setDate} />
+                <div className="air-dark-pill">
+                  <ShieldCheck className="h-4 w-4 text-[var(--air-yellow)]" />
+                  Тарифы понятны до оплаты
                 </div>
-
-                {/* Submit Button */}
-                <button
-                  onClick={handleSearch}
-                  className="group flex items-center justify-center h-16 w-full lg:w-48 bg-[#4B8EE9] hover:bg-[#3D7BD4] text-white font-bold rounded-[1.25rem] transition-all duration-300 flex-shrink-0"
-                >
-                  <div className="flex items-center gap-2">
-                    <Search className="w-5 h-5 flex-shrink-0" />
-                    <span className="text-[15px] tracking-wide uppercase leading-none mt-0.5">Найти</span>
-                  </div>
-                </button>
-
               </div>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Popular destinations */}
-      <div className="max-w-5xl mx-auto px-4 mt-8 pb-16 w-full">
-        <h2 className="text-[1.25rem] font-semibold text-white mb-6 tracking-wide">Популярные направления</h2>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {POPULAR_ROUTES.map((route, i) => (
-            <button
-              key={i}
-              onClick={() => handlePopular(route)}
-              className="group relative rounded-[1.5rem] overflow-hidden text-left h-56 lg:h-64 border border-white/5 transition-all duration-300 hover:shadow-[0_8px_30px_rgba(80,178,255,0.15)] hover:border-white/10 hover:-translate-y-1 block"
-            >
-              <img
-                src={route.image}
-                alt={route.label}
-                loading="lazy"
-                decoding="async"
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#090C15] via-[#090C15]/40 to-transparent opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
-              
-              <div className="relative h-full flex flex-col justify-end p-4 sm:p-5">
-                <div className="flex flex-col gap-2">
-                  <div className="flex-1 w-full">
-                    {/* Разрешаем перенос текста на 2 строки, если не влезает */}
-                    <p className="text-base sm:text-[1.1rem] md:text-lg text-white font-semibold leading-tight line-clamp-2 md:line-clamp-none w-full">
-                      {route.label}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-1.5 text-[0.7rem] sm:text-[0.75rem] text-[#A0A5B5] mt-1.5 font-medium">
-                      <span>{route.from.split(' (')[0]}</span>
-                      <ChevronRight className="w-3 h-3 text-[#4E5466]" />
-                      <span>{route.to.split(' (')[0]}</span>
+            <div className="mt-8">
+              <BookingSearchPanel />
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-8 grid gap-4 md:grid-cols-3">
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+
+            return (
+              <Link key={action.title} to={action.to} className="air-link-card px-5 py-5">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[rgba(79,130,255,0.1)] text-[var(--air-blue-deep)]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="mt-5 text-xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">{action.title}</div>
+                <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">{action.description}</div>
+                <div className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-[var(--air-ink)]">
+                  Открыть
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </Link>
+            );
+          })}
+        </section>
+
+        <section id="destinations" className="mt-16">
+          <div className="air-section-head">
+            <div className="air-section-kicker">Направления</div>
+            <h2 className="text-4xl font-extrabold tracking-[-0.05em] text-[var(--air-ink)] md:text-5xl">
+              Популярные маршруты, с которых удобно начать поиск
+            </h2>
+            <p>Откройте готовое направление в один клик и сразу перейдите к выбору рейсов.</p>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {destinations.map((destination) => (
+              <Link
+                key={destination.city}
+                to={`/flights?${destination.params}`}
+                className="min-h-[300px] overflow-hidden rounded-[30px] p-5 text-white shadow-[0_28px_70px_rgba(17,24,39,0.18)] transition-transform duration-300 hover:-translate-y-[2px]"
+                style={destination.style}
+              >
+                <div className="flex h-full flex-col justify-between">
+                  <div>
+                    <div className="inline-flex rounded-full border border-white/16 bg-white/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white/84">
+                      {destination.route}
+                    </div>
+                    <div className="mt-5 text-3xl font-extrabold tracking-[-0.05em]">{destination.city}</div>
+                    <div className="mt-3 max-w-[220px] text-sm leading-relaxed text-white/76">{destination.subtitle}</div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/62">Билеты</div>
+                    <div className="mt-2 text-2xl font-extrabold">{destination.price}</div>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section id="tariffs" className="mt-16">
+          <div className="air-surface-card-strong px-5 py-6 md:px-8 md:py-8">
+            <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr]">
+              <div>
+                <div className="air-section-kicker">Тарифы</div>
+                <h2 className="mt-4 text-4xl font-extrabold tracking-[-0.05em] text-[var(--air-ink)] md:text-5xl">
+                  Тарифы, которые читаются до выбора места
+                </h2>
+                <p className="mt-4 max-w-md text-sm leading-relaxed text-[var(--air-muted)] md:text-base">
+                  На выдаче сразу видно, что входит в тариф: багаж, выбор места и правила по маршруту.
+                </p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-3">
+                {fareFamilies.map((fare, index) => (
+                  <div
+                    key={fare.title}
+                    className={index === 1 ? 'air-dark-card p-5 md:p-6' : 'air-soft-card p-5 md:p-6'}
+                  >
+                    <div
+                      className="text-[11px] font-extrabold uppercase tracking-[0.18em]"
+                      style={index === 1 ? { color: 'rgba(248,245,238,0.62)' } : { color: 'var(--air-muted)' }}
+                    >
+                      {fare.subtitle}
+                    </div>
+                    <div
+                      className="mt-3 text-3xl font-extrabold tracking-[-0.05em]"
+                      style={index === 1 ? { color: 'white' } : { color: 'var(--air-ink)' }}
+                    >
+                      {fare.title}
+                    </div>
+
+                    <div className="air-divider my-5" />
+
+                    <div className="space-y-3">
+                      {fare.features.map((feature) => (
+                        <div
+                          key={feature}
+                          className="flex items-start gap-3 text-sm font-semibold"
+                          style={index === 1 ? { color: 'rgba(248,245,238,0.88)' } : { color: 'var(--air-ink)' }}
+                        >
+                          <span className="mt-1 h-2 w-2 rounded-full bg-[var(--air-yellow)]" />
+                          <span>{feature}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="mt-1">
-                    <span className="inline-flex px-2 sm:px-2.5 py-1 sm:py-1.5 bg-[#50B2FF]/15 text-[#50B2FF] text-[0.7rem] sm:text-[0.8rem] md:text-sm font-bold rounded-lg border border-[#50B2FF]/20 backdrop-blur-sm shadow-sm whitespace-nowrap">
-                      {route.price}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Trust */}
-      <div className="border-t border-dark-700 bg-dark-800/30">
-        <div className="max-w-5xl mx-auto px-4 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-neon-blue/10 flex items-center justify-center flex-shrink-0">
-                <Shield className="w-4 h-4 text-neon-blue" />
-              </div>
-              <div>
-                <h3 className="text-sm text-fg font-medium mb-0.5">Безопасная оплата</h3>
-                <p className="text-xs text-fg-subtle leading-relaxed">Ваши платёжные данные надежно защищены современным алгоритмом шифрования</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-neon-purple/10 flex items-center justify-center flex-shrink-0">
-                <Clock className="w-4 h-4 text-neon-purple" />
-              </div>
-              <div>
-                <h3 className="text-sm text-fg font-medium mb-0.5">Мгновенная выписка</h3>
-                <p className="text-xs text-fg-subtle leading-relaxed">Электронный билет будет отправлен на вашу почту сразу же после оплаты</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-neon-green/10 flex items-center justify-center flex-shrink-0">
-                <Headphones className="w-4 h-4 text-neon-green" />
-              </div>
-              <div>
-                <h3 className="text-sm text-fg font-medium mb-0.5">Поддержка 24/7</h3>
-                <p className="text-xs text-fg-subtle leading-relaxed">Мы всегда на связи и готовы помочь с любым вопросом в любое время суток</p>
+                ))}
               </div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
+        <section className="mt-16 air-dark-card px-5 py-6 md:px-8 md:py-8">
+          <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr] xl:items-start">
+            <div>
+              <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
+                Перед покупкой
+              </div>
+              <h2 className="mt-4 text-4xl font-extrabold tracking-[-0.05em] md:text-5xl">
+                Что проверить перед покупкой
+              </h2>
+              <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/72 md:text-base">
+                Условия тарифа, нормы багажа и правила обмена должны быть видны заранее, а не после оплаты.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {serviceHighlights.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <div key={item.title} className="rounded-[26px] border border-white/10 bg-white/5 p-5">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-white/8 text-[var(--air-yellow)]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="mt-5 text-xl font-extrabold tracking-[-0.04em] text-white">{item.title}</div>
+                    <div className="mt-3 text-sm leading-relaxed text-white/70">{item.description}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-16">
+          <div className="air-surface-card-strong px-5 py-6 md:px-8 md:py-8">
+            <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr] xl:items-center">
+              <div>
+                <div className="air-section-kicker">Следующий шаг</div>
+                <h2 className="mt-4 text-4xl font-extrabold tracking-[-0.05em] text-[var(--air-ink)] md:text-5xl">
+                  Готовы к покупке
+                </h2>
+                <p className="mt-4 max-w-lg text-sm leading-relaxed text-[var(--air-muted)] md:text-base">
+                  Начните с поиска маршрута, затем выберите рейс, место и завершите бронирование в спокойном потоке.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3 xl:justify-end">
+                <Link to="/#search" className="air-primary-button">
+                  Найти билет
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link to="/profile" className="air-secondary-button">
+                  Открыть кабинет
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

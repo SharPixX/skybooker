@@ -122,4 +122,6 @@ enum EventStatus {
   PROCESSING
   COMPLETED
   FAILED
+
+  @@map("OutboxEventStatus")
 }

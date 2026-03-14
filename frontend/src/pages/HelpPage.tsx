@@ -1,106 +1,155 @@
-import { Link } from 'react-router-dom';
-import { HelpCircle, Clock, CreditCard, XCircle, Mail, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ChevronDown, LifeBuoy, Plane, ShieldCheck, Ticket, User2 } from 'lucide-react';
 
-interface FaqItem {
-  q: string;
-  a: string;
-}
+const helpTopics = [
+  {
+    title: 'Покупка и маршрут',
+    description: 'Как пройти путь от поиска рейса до подтверждения брони.',
+    icon: Plane,
+  },
+  {
+    title: 'Тарифы и правила',
+    description: 'Что входит в тариф, как работает обмен и какие условия у багажа.',
+    icon: ShieldCheck,
+  },
+  {
+    title: 'Поддержка по поездке',
+    description: 'Где искать статус, маршрут и действия после оформления билета.',
+    icon: LifeBuoy,
+  },
+] as const;
 
-const FAQ: FaqItem[] = [
+const serviceCards = [
   {
-    q: 'Как забронировать билет?',
-    a: 'Выберите направление и дату на главной странице, найдите подходящий рейс, выберите место и подтвердите бронирование. У вас будет 15 минут на оплату.',
+    title: 'Перед покупкой',
+    description: 'Проверьте условия тарифа, нормы багажа и правила обмена до выбора места.',
+    icon: Ticket,
   },
   {
-    q: 'Сколько времени действует бронь?',
-    a: 'После выбора места у вас есть 15 минут на подтверждение (оплату). Если время истечёт, место автоматически вернётся в продажу.',
+    title: 'После брони',
+    description: 'Таймер удержания, подтверждение и изменения по маршруту собраны на странице бронирования.',
+    icon: LifeBuoy,
   },
   {
-    q: 'Можно ли отменить бронирование?',
-    a: 'Да, вы можете отменить неподтверждённое бронирование в любой момент. Для подтверждённых бронирований свяжитесь со службой поддержки.',
+    title: 'Кабинет',
+    description: 'В кабинете пассажира доступны последние поездки, билеты и основные настройки аккаунта.',
+    icon: User2,
   },
-  {
-    q: 'Как выбрать место в самолёте?',
-    a: 'На странице рейса нажмите "Выбрать место". Вы увидите схему салона, где зелёным отмечены доступные места. Нажмите на нужное место для бронирования.',
-  },
-  {
-    q: 'Какие способы оплаты доступны?',
-    a: 'На данный момент сервис работает в тестовом режиме. Полноценная интеграция с платёжными системами будет добавлена в ближайшее время.',
-  },
-  {
-    q: 'Почему я не могу отменить чужое бронирование?',
-    a: 'В целях безопасности каждое бронирование привязано к учётной записи пользователя. Управлять можно только своими бронированиями.',
-  },
-];
+] as const;
 
-function FaqAccordion({ item }: { item: FaqItem }) {
+const faqItems = [
+  {
+    question: 'Как проходит бронирование билета?',
+    answer:
+      'Вы выбираете маршрут на главной, переходите к списку рейсов, затем выбираете место в салоне. После этого создается бронь, а место удерживается 15 минут до подтверждения.',
+  },
+  {
+    question: 'Сколько времени держится бронь?',
+    answer:
+      'Бронь удерживается 15 минут. Таймер виден на странице бронирования, чтобы было понятно, сколько времени осталось на оплату.',
+  },
+  {
+    question: 'Можно ли отменить бронирование?',
+    answer:
+      'Да, если бронь еще ожидает оплаты. Для подтвержденных билетов условия обмена и возврата зависят от выбранного тарифа.',
+  },
+  {
+    question: 'Где посмотреть маршрут после покупки?',
+    answer:
+      'После входа все последние поездки, статусы брони и билет доступны в кабинете пассажира.',
+  },
+  {
+    question: 'Почему выбор места находится после выбора тарифа?',
+    answer:
+      'Сначала важно увидеть стоимость и условия тарифа. После этого выбор места становится понятным и не перегружает покупку лишними решениями.',
+  },
+  {
+    question: 'Как подтвердить бронирование?',
+    answer:
+      'После выбора места создается бронь. На странице бронирования можно подтвердить ее, пока действует таймер удержания.',
+  },
+] as const;
+
+function FaqItem({ question, answer }: { question: string; answer: string }) {
   const [open, setOpen] = useState(false);
+
   return (
-    <div className="border border-dark-600 rounded-xl overflow-hidden">
+    <div className="rounded-[24px] border border-[var(--air-border)] bg-[rgba(255,255,255,0.74)]">
       <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between p-4 text-left hover:bg-dark-800/50 transition-colors"
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
       >
-        <span className="text-sm text-fg font-medium pr-4">{item.q}</span>
-        <ChevronDown className={`w-4 h-4 text-fg-subtle flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="text-sm font-extrabold text-[var(--air-ink)] md:text-base">{question}</span>
+        <ChevronDown className={`h-4 w-4 text-[var(--air-muted)] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
-      {open && (
-        <div className="px-4 pb-4 text-sm text-fg-muted leading-relaxed">
-          {item.a}
-        </div>
-      )}
+      {open && <div className="px-5 pb-5 text-sm leading-relaxed text-[var(--air-muted)] md:text-base">{answer}</div>}
     </div>
   );
 }
 
 export default function HelpPage() {
   return (
-    <div className="max-w-3xl mx-auto px-4 py-10">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-fg-subtle mb-8">
-        <Link to="/" className="hover:text-fg transition-colors">Главная</Link>
-        <span>/</span>
-        <span className="text-fg-muted">Помощь</span>
-      </div>
-
-      <h1 className="text-2xl md:text-3xl font-bold text-fg mb-2">Центр помощи</h1>
-      <p className="text-sm text-fg-muted mb-8">Ответы на частые вопросы и полезная информация</p>
-
-      {/* Quick links */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-        {[
-          { icon: HelpCircle, label: 'Бронирование', color: 'text-sky' },
-          { icon: Clock, label: 'Сроки', color: 'text-neon-purple' },
-          { icon: CreditCard, label: 'Оплата', color: 'text-neon-green' },
-          { icon: XCircle, label: 'Отмена', color: 'text-red-400' },
-        ].map(({ icon: Icon, label, color }) => (
-          <div key={label} className="bg-dark-800 border border-dark-600 rounded-xl p-4 text-center">
-            <Icon className={`w-5 h-5 ${color} mx-auto mb-2`} />
-            <p className="text-xs text-fg-secondary font-medium">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* FAQ */}
-      <h2 className="text-lg font-semibold text-fg mb-4">Часто задаваемые вопросы</h2>
-      <div className="space-y-2 mb-10">
-        {FAQ.map((item, i) => (
-          <FaqAccordion key={i} item={item} />
-        ))}
-      </div>
-
-      {/* Contact */}
-      <div className="p-6 bg-dark-800 border border-dark-600 rounded-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-sky/10 flex items-center justify-center flex-shrink-0">
-            <Mail className="w-5 h-5 text-sky" />
-          </div>
-          <div>
-            <p className="text-sm text-fg font-medium">Не нашли ответ?</p>
-            <p className="text-xs text-fg-subtle mt-0.5">Напишите в поддержку: support@skybooker.ru</p>
-          </div>
+    <div className="air-page">
+      <div className="air-container">
+        <div className="mb-4 flex items-center gap-2 text-sm text-[var(--air-muted)]">
+          <Link to="/" className="font-semibold text-[var(--air-ink)]">
+            Главная
+          </Link>
+          <span>/</span>
+          <span>Помощь</span>
         </div>
+
+        <section className="air-dark-card px-5 py-6 md:px-8 md:py-8">
+          <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
+            Помощь
+          </div>
+          <h1 className="mt-4 max-w-4xl text-4xl font-extrabold tracking-[-0.05em] md:text-6xl">
+            Ответы на вопросы по билетам, тарифам и бронированию
+          </h1>
+          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/72 md:text-base">
+            Здесь можно быстро проверить правила тарифа, багаж, бронь и следующий шаг по поездке.
+          </p>
+        </section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
+          {helpTopics.map((topic) => {
+            const Icon = topic.icon;
+
+            return (
+              <div key={topic.title} className="air-link-card px-5 py-5">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[rgba(79,130,255,0.1)] text-[var(--air-blue-deep)]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="mt-5 text-xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">{topic.title}</div>
+                <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">{topic.description}</div>
+              </div>
+            );
+          })}
+        </section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-3">
+          {serviceCards.map((card) => {
+            const Icon = card.icon;
+
+            return (
+              <div key={card.title} className="air-soft-card p-5 md:p-6">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[rgba(79,130,255,0.1)] text-[var(--air-blue-deep)]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="mt-5 text-xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">{card.title}</div>
+                <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">{card.description}</div>
+              </div>
+            );
+          })}
+        </section>
+
+        <section className="mt-6 space-y-3">
+          {faqItems.map((item) => (
+            <FaqItem key={item.question} question={item.question} answer={item.answer} />
+          ))}
+        </section>
       </div>
     </div>
   );

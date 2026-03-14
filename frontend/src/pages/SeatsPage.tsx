@@ -1,53 +1,61 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getFlightById, bookSeat } from '../api';
-import { useAuth } from '../context/AuthContext';
-import { Flight, Seat } from '../types';
-import { isAxiosError } from 'axios';
-import { Plane, ArrowRight, Loader2, AlertCircle, Clock, Info, Shield, Crown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-
-/* ─── Aircraft Layout Definitions ─── */
+import { isAxiosError } from 'axios';
+import { ArrowRight, Crown, Info, Loader2, Plane, ShieldCheck, Ticket } from 'lucide-react';
+import { bookSeat, getFlightById } from '../api';
+import { useAuth } from '../context/AuthContext';
+import { createMockBooking, getMockFlightById } from '../mockData';
+import type { Flight, Seat } from '../types';
 
 interface LayoutConfig {
   businessRows: number[];
-  businessLetters: string[];
   economyRows: number[];
-  economyLetters: string[];
   exitRows: number[];
-  columns: string[][]; // groups separated by aisles
+  columns: string[][];
   businessColumns: string[][];
 }
 
 const BOEING_737: LayoutConfig = {
   businessRows: [1, 2, 3, 4],
-  businessLetters: ['A', 'C', 'D', 'F'],
-  economyRows: Array.from({ length: 26 }, (_, i) => i + 5), // 5-30
-  economyLetters: ['A', 'B', 'C', 'D', 'E', 'F'],
-  exitRows: [1, 12, 25],
+  economyRows: Array.from({ length: 26 }, (_, index) => index + 5),
+  exitRows: [12, 25],
   columns: [['A', 'B', 'C'], ['D', 'E', 'F']],
   businessColumns: [['A', 'C'], ['D', 'F']],
 };
 
 const BOEING_777: LayoutConfig = {
   businessRows: [1, 2, 3, 4, 5],
-  businessLetters: ['A', 'C', 'D', 'G', 'H', 'K'],
-  economyRows: Array.from({ length: 40 }, (_, i) => i + 6), // 6-45
-  economyLetters: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'],
-  exitRows: [1, 20, 35],
+  economyRows: Array.from({ length: 40 }, (_, index) => index + 6),
+  exitRows: [20, 35],
   columns: [['A', 'B', 'C'], ['D', 'E', 'F', 'G'], ['H', 'J', 'K']],
   businessColumns: [['A', 'C'], ['D', 'G'], ['H', 'K']],
 };
 
+const fareBenefits = {
+  light: ['Ручная кладь и базовые условия тарифа', 'Подходит для короткой поездки', 'Багаж и место можно добавить позже'],
+  comfort: ['Багаж включен в тариф', 'Стандартные места уже доступны', 'Оптимальный вариант для отпуска и семьи'],
+  business: ['Приоритет на земле и в аэропорту', 'Больше пространства в салоне', 'Гибкие условия по поездке'],
+} as const;
+
 function getLayout(aircraftType?: string): LayoutConfig {
-  if (aircraftType?.includes('777')) return BOEING_777;
+  if (aircraftType?.includes('777')) {
+    return BOEING_777;
+  }
+
   return BOEING_737;
+}
+
+function formatPrice(value: string) {
+  return `${parseFloat(value).toLocaleString('ru-RU')} ₽`;
 }
 
 export default function SeatsPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isAuthenticated } = useAuth();
   const [flight, setFlight] = useState<Flight | null>(null);
   const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
@@ -55,46 +63,67 @@ export default function SeatsPage() {
   const [booking, setBooking] = useState(false);
   const [error, setError] = useState('');
   const [classFilter, setClassFilter] = useState<'all' | 'business' | 'economy'>('all');
-  const seatMapRef = useRef<HTMLDivElement>(null);
+
+  const fare = (searchParams.get('fare') as 'light' | 'comfort' | 'business' | null) ?? 'comfort';
+  const fareTitle = fare === 'light' ? 'Light' : fare === 'business' ? 'Business' : 'Comfort';
+  const isMockSelection = Boolean(selectedSeat?.id.startsWith('mock-'));
 
   useEffect(() => {
-    async function load() {
-      if (!id) return;
+    setClassFilter(fare === 'business' ? 'business' : 'all');
+  }, [fare]);
+
+  useEffect(() => {
+    async function loadFlight() {
+      if (!id) {
+        return;
+      }
+
       try {
         const data = await getFlightById(id);
         setFlight(data);
       } catch {
-        setError('Не удалось загрузить рейс');
+        const mockFlight = getMockFlightById(id);
+        if (mockFlight) {
+          setFlight(mockFlight);
+        } else {
+          setError('Не удалось загрузить схему салона.');
+        }
       } finally {
         setLoading(false);
       }
     }
-    load();
+
+    loadFlight();
   }, [id]);
 
   const handleBook = async () => {
-    if (!selectedSeat) return;
-    if (!isAuthenticated) {
-      navigate('/auth');
+    if (!selectedSeat) {
       return;
     }
+
+    if (selectedSeat.id.startsWith('mock-') && flight) {
+      const mockBooking = createMockBooking(flight, selectedSeat);
+      navigate(`/booking/${mockBooking.id}`);
+      return;
+    }
+
+    if (!isAuthenticated) {
+      navigate('/auth', { state: { from: `${location.pathname}${location.search}` } });
+      return;
+    }
+
     setBooking(true);
     setError('');
+
     try {
-      const { booking } = await bookSeat(selectedSeat.id);
-      navigate(`/booking/${booking.id}`);
-    } catch (err: unknown) {
-      const msg = isAxiosError(err)
-        ? err.response?.data?.message
-        : 'Место уже занято. Выберите другое.';
-      setError(msg || 'Место уже занято. Выберите другое.');
+      const { booking: bookingResult } = await bookSeat(selectedSeat.id);
+      navigate(`/booking/${bookingResult.id}`);
+    } catch (unknownError) {
+      const message = isAxiosError(unknownError)
+        ? unknownError.response?.data?.message
+        : 'Место уже занято. Выберите другое место.';
+      setError(message || 'Место уже занято. Выберите другое место.');
       setSelectedSeat(null);
-      if (id) {
-        try {
-          const data = await getFlightById(id);
-          setFlight(data);
-        } catch { /* keep current */ }
-      }
     } finally {
       setBooking(false);
     }
@@ -102,398 +131,360 @@ export default function SeatsPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <Loader2 className="w-7 h-7 text-sky animate-spin" />
-        <p className="text-sm text-fg-subtle">Загружаем схему самолёта...</p>
+      <div className="air-page">
+        <div className="air-container">
+          <div className="air-surface-card flex items-center justify-center gap-3 px-5 py-16 text-[var(--air-muted)]">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Загружаем схему салона...
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!flight) {
     return (
-      <div className="text-center py-20">
-        <p className="text-fg-muted">Рейс не найден</p>
-        <Link to="/" className="text-sky text-sm hover:underline mt-2 inline-block">На главную</Link>
+      <div className="air-page">
+        <div className="air-container">
+          <div className="air-surface-card px-6 py-12 text-center">
+            <div className="text-2xl font-extrabold text-[var(--air-ink)]">Рейс не найден</div>
+            <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">
+              Попробуйте вернуться к выбору рейсов и запустить поиск заново.
+            </div>
+            <Link to="/flights" className="air-secondary-button mt-6">
+              К рейсам
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const seats = flight.seats ?? [];
   const layout = getLayout(flight.aircraftType);
-  const is777 = flight.aircraftType?.includes('777');
-
-  // Build seat map: seatNumber -> seat
+  const seats = flight.seats ?? [];
   const seatMap = new Map<string, Seat>();
-  for (const seat of seats) {
-    seatMap.set(seat.seatNumber, seat);
-  }
+  seats.forEach((seat) => seatMap.set(seat.seatNumber, seat));
 
-  const businessSeats = seats.filter(s => s.class === 'business');
-  const economySeats = seats.filter(s => s.class === 'economy');
-  const availBusiness = businessSeats.filter(s => s.status === 'AVAILABLE').length;
-  const availEconomy = economySeats.filter(s => s.status === 'AVAILABLE').length;
+  const businessSeats = seats.filter((seat) => seat.class === 'business');
+  const economySeats = seats.filter((seat) => seat.class === 'economy');
+  const availableBusiness = businessSeats.filter((seat) => seat.status === 'AVAILABLE').length;
+  const availableEconomy = economySeats.filter((seat) => seat.status === 'AVAILABLE').length;
+  const minBusiness = businessSeats
+    .filter((seat) => seat.status === 'AVAILABLE')
+    .map((seat) => parseFloat(seat.price))
+    .sort((left, right) => left - right)[0];
+  const minEconomy = economySeats
+    .filter((seat) => seat.status === 'AVAILABLE')
+    .map((seat) => parseFloat(seat.price))
+    .sort((left, right) => left - right)[0];
 
-  const businessPrices = businessSeats.filter(s => s.status === 'AVAILABLE').map(s => parseFloat(s.price));
-  const economyPrices = economySeats.filter(s => s.status === 'AVAILABLE').map(s => parseFloat(s.price));
-  const minBusiness = businessPrices.length > 0 ? Math.min(...businessPrices) : 0;
-  const minEconomy = economyPrices.length > 0 ? Math.min(...economyPrices) : 0;
-
-  function getSeatStyle(seat: Seat, isBusiness: boolean) {
-    const base = isBusiness ? 'w-11 h-11 rounded-lg' : 'w-8 h-8 rounded-md';
-    if (selectedSeat?.id === seat.id) return `${base} bg-neon-blue/30 border-2 border-neon-blue text-neon-blue shadow-lg shadow-neon-blue/20`;
-    if (seat.status === 'LOCKED') return `${base} bg-amber-500/15 border border-amber-500/30 text-amber-400/50 cursor-not-allowed`;
-    if (seat.status === 'BOOKED') return `${base} bg-dark-700/60 border border-dark-600/50 text-dark-500 cursor-not-allowed`;
-    if (isBusiness) return `${base} bg-amber-900/20 border border-amber-500/30 text-amber-200/80 hover:bg-amber-500/25 hover:border-amber-400/50 cursor-pointer`;
-    return `${base} bg-dark-600/50 border border-dark-500/50 text-fg-subtle hover:bg-dark-500/60 hover:border-dark-400/50 cursor-pointer`;
-  }
-
-  function renderSeatButton(seatNumber: string, isBusiness: boolean) {
+  const renderSeatButton = (seatNumber: string, isBusiness: boolean) => {
     const seat = seatMap.get(seatNumber);
-    if (!seat) return <div key={seatNumber} className={isBusiness ? 'w-11 h-11' : 'w-8 h-8'} />;
+    const size = isBusiness ? 'h-11 w-11 rounded-[14px]' : 'h-9 w-9 rounded-[12px]';
+
+    if (!seat) {
+      return <div key={seatNumber} className={size} />;
+    }
+
+    const classes = ['air-seat', size];
+
+    if (selectedSeat?.id === seat.id) {
+      classes.push('air-seat-selected');
+    } else if (seat.status === 'LOCKED') {
+      classes.push('air-seat-locked');
+    } else if (seat.status === 'BOOKED') {
+      classes.push('air-seat-booked');
+    } else if (isBusiness) {
+      classes.push('air-seat-business');
+    } else {
+      classes.push('air-seat-available');
+    }
 
     return (
       <button
         key={seat.id}
+        type="button"
         disabled={seat.status !== 'AVAILABLE'}
-        onClick={() => setSelectedSeat(selectedSeat?.id === seat.id ? null : seat)}
-        className={`${getSeatStyle(seat, isBusiness)} text-[10px] font-medium flex items-center justify-center transition-all duration-150`}
-        title={seat.status === 'AVAILABLE' ? `${seat.seatNumber} · ${parseFloat(seat.price).toLocaleString('ru-RU')} ₽ · ${isBusiness ? 'Бизнес' : 'Эконом'}` : `${seat.seatNumber} — занято`}
+        onClick={() => setSelectedSeat((current) => (current?.id === seat.id ? null : seat))}
+        className={classes.join(' ')}
+        title={`${seat.seatNumber} • ${formatPrice(seat.price)}`}
       >
-        {seat.status === 'BOOKED' ? '×' : seat.status === 'LOCKED' ? '—' : seat.seatNumber.slice(-1)}
+        {seat.seatNumber.slice(-1)}
       </button>
     );
-  }
+  };
 
-  function renderRow(rowNum: number, letters: string[][], isBusiness: boolean, isExit: boolean) {
-    return (
-      <div key={rowNum} className={`flex items-center justify-center gap-0.5 ${isExit ? 'mb-4 relative' : 'mb-0.5'}`}>
-        {letters.map((group, gi) => (
-          <div key={gi} className="flex gap-0.5">
-            {group.map(letter => renderSeatButton(`${rowNum}${letter}`, isBusiness))}
-            {gi < letters.length - 1 && (
-              <div className={`${isBusiness ? 'w-8' : 'w-6'} flex items-center justify-center`}>
-                {gi === 0 && (
-                  <span className="text-[9px] text-fg-faint font-mono">{rowNum}</span>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-        {/* Row number on right for 2-aisle layouts */}
-        {letters.length === 2 && (
-          <div className="w-6 flex items-center justify-center">
-            <span className="text-[9px] text-fg-faint font-mono">{rowNum}</span>
-          </div>
-        )}
-        {isExit && (
-          <div className="absolute -bottom-3 left-0 right-0 flex items-center justify-center">
-            <span className="text-[8px] text-neon-green/60 tracking-widest uppercase">выход</span>
-          </div>
-        )}
-      </div>
-    );
-  }
+  const renderRow = (rowNumber: number, groups: string[][], isBusiness: boolean, isExit: boolean) => (
+    <div key={rowNumber} className={`relative mb-2 flex items-center justify-center gap-1 ${isExit ? 'pb-4' : ''}`}>
+      {groups.map((group, groupIndex) => (
+        <div key={`${rowNumber}-${groupIndex}`} className="flex items-center gap-1">
+          {group.map((letter) => renderSeatButton(`${rowNumber}${letter}`, isBusiness))}
+          {groupIndex < groups.length - 1 && (
+            <div className={`${isBusiness ? 'w-8' : 'w-6'} flex items-center justify-center text-[11px] font-bold text-[var(--air-muted)]`}>
+              {groupIndex === 0 ? rowNumber : ''}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {groups.length === 2 && <div className="w-6 text-center text-[11px] font-bold text-[var(--air-muted)]">{rowNumber}</div>}
+
+      {isExit && (
+        <div className="absolute bottom-0 left-0 right-0 text-center text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-emerald)]">
+          Выход
+        </div>
+      )}
+    </div>
+  );
 
   const showBusiness = classFilter === 'all' || classFilter === 'business';
   const showEconomy = classFilter === 'all' || classFilter === 'economy';
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-fg-subtle mb-6">
-        <Link to="/" className="hover:text-fg transition-colors">Главная</Link>
-        <span>/</span>
-        <Link to={`/flights?from=${encodeURIComponent(flight.departureAirport.city)}`} className="hover:text-fg transition-colors">Рейсы</Link>
-        <span>/</span>
-        <span className="text-fg-muted">{flight.flightNumber}</span>
-      </div>
+    <div className="air-page">
+      <div className="air-container">
+        <div className="mb-4 flex items-center gap-2 text-sm text-[var(--air-muted)]">
+          <Link to="/" className="font-semibold text-[var(--air-ink)]">
+            Главная
+          </Link>
+          <span>/</span>
+          <Link to="/flights" className="font-semibold text-[var(--air-ink)]">
+            Рейсы
+          </Link>
+          <span>/</span>
+          <span>Место в салоне</span>
+        </div>
 
-      {/* Flight card */}
-      <div className="bg-dark-800 border border-dark-600 rounded-xl p-5 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-sky/10 flex items-center justify-center">
-              <Plane className="w-5 h-5 text-sky -rotate-45" />
-            </div>
+        <section className="air-dark-card px-5 py-6 md:px-8 md:py-8">
+          <div className="grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-sky bg-sky/10 px-2 py-0.5 rounded">{flight.flightNumber}</span>
-                <span className="text-[10px] font-mono text-fg-subtle bg-dark-700 px-2 py-0.5 rounded">{flight.aircraftType || 'Boeing 737-800'}</span>
+              <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
+                Выбор места
               </div>
-              <div className="flex items-center gap-2 text-fg mt-1">
-                <span className="font-medium">{flight.departureAirport.city} ({flight.departureAirport.code})</span>
-                <ArrowRight className="w-3.5 h-3.5 text-fg-subtle" />
-                <span className="font-medium">{flight.destinationAirport.city} ({flight.destinationAirport.code})</span>
+              <h1 className="mt-4 text-4xl font-extrabold tracking-[-0.05em] md:text-5xl">
+                {flight.departureAirport.city} → {flight.destinationAirport.city}
+              </h1>
+              <div className="mt-4 air-meta-row">
+                <div className="air-dark-pill">
+                  <Plane className="h-4 w-4 text-[var(--air-yellow)]" />
+                  {flight.flightNumber}
+                </div>
+                <div className="air-dark-pill">
+                  <Ticket className="h-4 w-4 text-[var(--air-yellow)]" />
+                  {flight.aircraftType || 'Boeing 737-800'}
+                </div>
+                <div className="air-dark-pill">
+                  <ShieldCheck className="h-4 w-4 text-[var(--air-yellow)]" />
+                  {format(new Date(flight.departureTime), 'd MMMM yyyy, HH:mm', { locale: ru })}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Эконом</div>
+                <div className="mt-2 text-2xl font-extrabold text-white">{availableEconomy} мест</div>
+                <div className="mt-2 text-sm text-white/64">от {minEconomy ? `${minEconomy.toLocaleString('ru-RU')} ₽` : '—'}</div>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-white/6 px-4 py-4">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Business</div>
+                <div className="mt-2 text-2xl font-extrabold text-white">{availableBusiness} мест</div>
+                <div className="mt-2 text-sm text-white/64">от {minBusiness ? `${minBusiness.toLocaleString('ru-RU')} ₽` : '—'}</div>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4 text-sm text-fg-muted">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              <span>{format(new Date(flight.departureTime), 'd MMMM yyyy, HH:mm', { locale: ru })}</span>
-            </div>
-          </div>
-        </div>
-      </div>
+        </section>
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-dark-800 border border-amber-500/20 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Crown className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px] text-amber-300/80 uppercase tracking-wide">Бизнес</span>
-          </div>
-          <div className="text-lg font-bold text-fg">{availBusiness}<span className="text-xs text-fg-subtle font-normal">/{businessSeats.length}</span></div>
-          {minBusiness > 0 && <div className="text-[11px] text-fg-subtle">от {minBusiness.toLocaleString('ru-RU')} ₽</div>}
-        </div>
-        <div className="bg-dark-800 border border-dark-600 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Shield className="w-3.5 h-3.5 text-sky" />
-            <span className="text-[11px] text-fg-subtle uppercase tracking-wide">Эконом</span>
-          </div>
-          <div className="text-lg font-bold text-fg">{availEconomy}<span className="text-xs text-fg-subtle font-normal">/{economySeats.length}</span></div>
-          {minEconomy > 0 && <div className="text-[11px] text-fg-subtle">от {minEconomy.toLocaleString('ru-RU')} ₽</div>}
-        </div>
-        <div className="bg-dark-800 border border-dark-600 rounded-lg p-3">
-          <div className="text-[11px] text-fg-subtle uppercase tracking-wide mb-1">Всего мест</div>
-          <div className="text-lg font-bold text-fg">{seats.length}</div>
-          <div className="text-[11px] text-neon-green">{availBusiness + availEconomy} свободно</div>
-        </div>
-        <div className="bg-dark-800 border border-dark-600 rounded-lg p-3">
-          <div className="text-[11px] text-fg-subtle uppercase tracking-wide mb-1">Рядов</div>
-          <div className="text-lg font-bold text-fg">{is777 ? 45 : 30}</div>
-          <div className="text-[11px] text-fg-subtle">{is777 ? '3+4+3' : '3+3'} компоновка</div>
-        </div>
-      </div>
+        {error && (
+          <section className="mt-5 rounded-[24px] border border-[rgba(213,78,78,0.22)] bg-[rgba(213,78,78,0.08)] px-5 py-4 text-sm font-semibold text-[var(--air-danger)]">
+            {error}
+          </section>
+        )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Seat map */}
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-fg">Схема салона</h3>
+        <section className="mt-6 grid gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+          <div className="air-surface-card px-5 py-6 md:px-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <div className="text-2xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">Схема салона</div>
+                <div className="mt-2 text-sm leading-relaxed text-[var(--air-muted)]">
+                  Выберите место в салоне. После подтверждения бронь удерживается 15 минут до завершения покупки.
+                </div>
+              </div>
 
-            {/* Class filter */}
-            <div className="flex gap-1 bg-dark-800 border border-dark-600 rounded-lg p-0.5">
-              {(['all', 'business', 'economy'] as const).map(f => (
+              <div className="flex flex-wrap gap-3">
                 <button
-                  key={f}
-                  onClick={() => setClassFilter(f)}
-                  className={`px-3 py-1 text-[11px] rounded-md transition-all ${classFilter === f ? 'bg-dark-600 text-fg' : 'text-fg-subtle hover:text-fg'}`}
+                  type="button"
+                  onClick={() => setClassFilter('all')}
+                  className={`air-pill ${classFilter === 'all' ? 'border-[rgba(41,80,215,0.18)] bg-[rgba(79,130,255,0.12)] text-[var(--air-blue-deep)]' : ''}`}
                 >
-                  {f === 'all' ? 'Все' : f === 'business' ? 'Бизнес' : 'Эконом'}
+                  Все места
                 </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-3 text-[11px] text-fg-subtle mb-4">
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded bg-amber-900/20 border border-amber-500/30" />
-              <span>Бизнес</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded bg-dark-600/50 border border-dark-500/50" />
-              <span>Эконом</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded bg-neon-blue/30 border-2 border-neon-blue" />
-              <span>Выбрано</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded bg-dark-700/60 border border-dark-600/50 opacity-50" />
-              <span>Занято</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-4 h-4 rounded bg-amber-500/15 border border-amber-500/30" />
-              <span>Заблокировано</span>
-            </div>
-          </div>
-
-          {/* Airplane body */}
-          <div ref={seatMapRef} className="bg-dark-800 border border-dark-600 rounded-2xl overflow-hidden">
-            {/* Nose */}
-            <div className="relative">
-              <div className="mx-auto" style={{ width: is777 ? '340px' : '250px' }}>
-                <svg viewBox={is777 ? '0 0 340 50' : '0 0 250 50'} className="w-full h-12 text-dark-600">
-                  <path
-                    d={is777
-                      ? 'M170,2 Q340,2 340,50 L0,50 Q0,2 170,2'
-                      : 'M125,2 Q250,2 250,50 L0,50 Q0,2 125,2'}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                  <text x={is777 ? '170' : '125'} y="32" textAnchor="middle" className="fill-fg-subtle" fontSize="10" fontFamily="monospace">
-                    {flight.aircraftType || 'Boeing 737-800'}
-                  </text>
-                </svg>
+                <button
+                  type="button"
+                  onClick={() => setClassFilter('economy')}
+                  className={`air-pill ${classFilter === 'economy' ? 'border-[rgba(41,80,215,0.18)] bg-[rgba(79,130,255,0.12)] text-[var(--air-blue-deep)]' : ''}`}
+                >
+                  Эконом
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClassFilter('business')}
+                  className={`air-pill ${classFilter === 'business' ? 'border-[rgba(41,80,215,0.18)] bg-[rgba(79,130,255,0.12)] text-[var(--air-blue-deep)]' : ''}`}
+                >
+                  <Crown className="h-4 w-4 text-[var(--air-yellow-deep)]" />
+                  Business
+                </button>
               </div>
             </div>
 
-            <div className="px-4 pb-4 overflow-x-auto">
-              <div className="min-w-fit mx-auto" style={{ width: 'fit-content' }}>
-                {/* Business section */}
+            <div className="mt-5 flex flex-wrap gap-3">
+              <div className="air-pill">
+                <span className="air-seat air-seat-available h-6 w-6 rounded-[10px] text-[10px]">A</span>
+                Доступно
+              </div>
+              <div className="air-pill">
+                <span className="air-seat air-seat-business h-6 w-6 rounded-[10px] text-[10px]">B</span>
+                Бизнес
+              </div>
+              <div className="air-pill">
+                <span className="air-seat air-seat-booked h-6 w-6 rounded-[10px] text-[10px]">X</span>
+                Недоступно
+              </div>
+            </div>
+
+            <div className="air-divider my-6" />
+
+            <div className="overflow-x-auto">
+              <div className="mx-auto min-w-[540px] rounded-[28px] bg-[rgba(17,24,39,0.04)] p-5 md:p-6">
+                <div className="mb-6 flex items-center justify-center">
+                  <div className="inline-flex items-center gap-3 rounded-full border border-[var(--air-border)] bg-white px-5 py-3 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-muted)]">
+                    <span>Нос</span>
+                    <Plane className="h-4 w-4 -rotate-45 text-[var(--air-blue-deep)]" />
+                  </div>
+                </div>
+
                 {showBusiness && (
-                  <>
-                    <div className="flex items-center justify-center gap-1 mb-2 mt-2">
-                      <Crown className="w-3 h-3 text-amber-400 mr-1" />
-                      <span className="text-[10px] text-amber-300/80 uppercase tracking-widest">Бизнес-класс</span>
-                    </div>
-                    <div className="flex justify-center gap-0.5 mb-2 text-[9px] text-fg-subtle font-mono uppercase">
-                      {layout.businessColumns.map((group, gi) => (
-                        <div key={gi} className="flex gap-0.5">
-                          {group.map(l => (
-                            <div key={l} className="w-11 text-center">{l}</div>
-                          ))}
-                          {gi < layout.businessColumns.length - 1 && <div className="w-8" />}
-                        </div>
-                      ))}
-                      {layout.businessColumns.length === 2 && <div className="w-6" />}
-                    </div>
-
-                    {layout.businessRows.map(rowNum =>
-                      renderRow(rowNum, layout.businessColumns, true, layout.exitRows.includes(rowNum))
-                    )}
-
-                    <div className="flex items-center gap-3 my-4">
-                      <div className="flex-1 h-px bg-dark-600" />
-                      <span className="text-[9px] text-fg-faint uppercase tracking-widest">эконом</span>
-                      <div className="flex-1 h-px bg-dark-600" />
-                    </div>
-                  </>
-                )}
-
-                {/* Economy section */}
-                {showEconomy && (
-                  <>
-                    {!showBusiness && (
-                      <div className="flex items-center justify-center gap-1 mb-2 mt-2">
-                        <Shield className="w-3 h-3 text-sky mr-1" />
-                        <span className="text-[10px] text-fg-subtle uppercase tracking-widest">Эконом-класс</span>
+                  <div className="mb-8">
+                    <div className="mb-4 flex items-center gap-3">
+                      <div className="air-pill">
+                        <Crown className="h-4 w-4 text-[var(--air-yellow-deep)]" />
+                        Business
                       </div>
-                    )}
-                    <div className="flex justify-center gap-0.5 mb-2 text-[9px] text-fg-subtle font-mono uppercase">
-                      {layout.columns.map((group, gi) => (
-                        <div key={gi} className="flex gap-0.5">
-                          {group.map(l => (
-                            <div key={l} className="w-8 text-center">{l}</div>
-                          ))}
-                          {gi < layout.columns.length - 1 && <div className="w-6" />}
-                        </div>
-                      ))}
-                      {layout.columns.length === 2 && <div className="w-6" />}
                     </div>
+                    <div className="space-y-1">
+                      {layout.businessRows.map((rowNumber) =>
+                        renderRow(rowNumber, layout.businessColumns, true, layout.exitRows.includes(rowNumber)),
+                      )}
+                    </div>
+                  </div>
+                )}
 
-                    {layout.economyRows.map(rowNum =>
-                      renderRow(rowNum, layout.columns, false, layout.exitRows.includes(rowNum))
-                    )}
-                  </>
+                {showEconomy && (
+                  <div>
+                    <div className="mb-4 flex items-center gap-3">
+                      <div className="air-pill">
+                        <ShieldCheck className="h-4 w-4 text-[var(--air-emerald)]" />
+                        Эконом
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {layout.economyRows.map((rowNumber) =>
+                        renderRow(rowNumber, layout.columns, false, layout.exitRows.includes(rowNumber)),
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
+          </div>
 
-            {/* Tail */}
-            <div className="relative">
-              <div className="mx-auto" style={{ width: is777 ? '340px' : '250px' }}>
-                <svg viewBox={is777 ? '0 0 340 40' : '0 0 250 40'} className="w-full h-10 text-dark-600">
-                  <path
-                    d={is777
-                      ? 'M0,0 L340,0 Q340,40 170,40 Q0,40 0,0'
-                      : 'M0,0 L250,0 Q250,40 125,40 Q0,40 0,0'}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                </svg>
+          <aside className="space-y-5">
+            <div className="air-dark-card px-5 py-6 md:px-6 xl:sticky xl:top-28">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Тариф</div>
+                  <div className="mt-2 text-3xl font-extrabold tracking-[-0.05em]">{fareTitle}</div>
+                </div>
+                <div className="air-dark-pill">
+                  <Info className="h-4 w-4 text-[var(--air-yellow)]" />
+                  Место и итог
+                </div>
+              </div>
+
+              <div className="air-divider my-5" />
+
+              <div className="rounded-[24px] border border-white/10 bg-white/5 p-4">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Маршрут</div>
+                <div className="mt-2 text-lg font-extrabold">
+                  {flight.flightNumber} • {flight.departureAirport.code} → {flight.destinationAirport.code}
+                </div>
+                <div className="mt-2 text-sm text-white/68">
+                  {format(new Date(flight.departureTime), 'd MMMM yyyy, HH:mm', { locale: ru })}
+                </div>
+              </div>
+
+              <div className="air-divider my-5" />
+
+              <div className="space-y-3">
+                {fareBenefits[fare].map((benefit) => (
+                  <div key={benefit} className="flex items-start gap-3 text-sm font-semibold text-white/88">
+                    <span className="mt-1 h-2 w-2 rounded-full bg-[var(--air-yellow)]" />
+                    <span>{benefit}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="air-divider my-5" />
+
+              <div className="rounded-[26px] border border-white/10 bg-white/6 p-5">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Выбранное место</div>
+                {selectedSeat ? (
+                  <>
+                    <div className="mt-3 text-4xl font-extrabold tracking-[-0.05em]">{selectedSeat.seatNumber}</div>
+                    <div className="mt-2 text-lg font-bold text-[var(--air-yellow)]">{formatPrice(selectedSeat.price)}</div>
+                    <div className="mt-2 text-sm leading-relaxed text-white/72">
+                      {selectedSeat.class === 'business'
+                        ? 'Место в бизнес-салоне с повышенным комфортом.'
+                        : 'Место в экономическом салоне выбранного рейса.'}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-3 text-sm leading-relaxed text-white/72">
+                    Выберите место на схеме салона, чтобы увидеть итоговую стоимость и перейти к бронированию.
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleBook}
+                disabled={!selectedSeat || booking}
+                className="air-primary-button mt-5 w-full justify-center disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {booking ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Переходим к бронированию
+                  </>
+                ) : isMockSelection || isAuthenticated ? (
+                  <>
+                    Подтвердить место
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    Войти и продолжить
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+
+              <div className="mt-4 text-xs leading-relaxed text-white/60">
+                После выбора места бронь удерживается 15 минут. Если место уже занято, страница предложит выбрать другой вариант.
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Booking panel */}
-        <div>
-          <div className="bg-dark-800 border border-dark-600 rounded-xl p-5 sticky top-20">
-            <h3 className="text-base font-semibold text-fg mb-4">Ваш выбор</h3>
-
-            {error && (
-              <div className="flex items-start gap-2 p-3 bg-neon-red/10 border border-neon-red/20 rounded-lg text-neon-red text-sm mb-4">
-                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {selectedSeat ? (
-              <div className="space-y-3">
-                <div className="bg-dark-700 rounded-lg p-3 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-fg-muted">Рейс</span>
-                    <span className="text-fg font-mono">{flight.flightNumber}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-fg-muted">Маршрут</span>
-                    <span className="text-fg text-xs">{flight.departureAirport.city} → {flight.destinationAirport.city}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-fg-muted">Самолёт</span>
-                    <span className="text-fg text-xs font-mono">{flight.aircraftType || 'Boeing 737-800'}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-fg-muted">Место</span>
-                    <span className="text-fg font-mono font-bold text-lg">{selectedSeat.seatNumber}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-fg-muted">Класс</span>
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${
-                      selectedSeat.class === 'business'
-                        ? 'bg-amber-500/15 text-amber-300'
-                        : 'bg-sky/10 text-sky'
-                    }`}>
-                      {selectedSeat.class === 'business' ? 'Бизнес' : 'Эконом'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="border-t border-dark-600 pt-3">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-sm text-fg-muted">К оплате</span>
-                    <span className="text-2xl font-bold text-fg">
-                      {parseFloat(selectedSeat.price).toLocaleString('ru-RU')}
-                      <span className="text-sm text-fg-muted ml-1">₽</span>
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleBook}
-                  disabled={booking}
-                  className="w-full py-3 bg-neon-blue text-white font-semibold rounded-lg hover:bg-neon-blue/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {booking ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Бронируем...
-                    </>
-                  ) : (
-                    'Забронировать'
-                  )}
-                </button>
-
-                <div className="flex items-start gap-1.5 text-[11px] text-fg-subtle">
-                  <Info className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                  <span>Место будет зарезервировано на 15 минут. Оплата спишется автоматически.</span>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-10 text-fg-subtle">
-                <div className="w-12 h-12 rounded-full bg-dark-700 flex items-center justify-center mx-auto mb-3">
-                  <Plane className="w-5 h-5 text-fg-faint -rotate-45" />
-                </div>
-                <p className="text-sm">Выберите место на схеме</p>
-              </div>
-            )}
-          </div>
-        </div>
+          </aside>
+        </section>
       </div>
     </div>
   );
