@@ -5,8 +5,9 @@ import { SearchCitiesQuery } from '../schemas';
 export async function searchCities(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { q } = req.query as unknown as SearchCitiesQuery;
+    const normalizedQuery = q.trim();
 
-    if (!q || q.length < 1) {
+    if (!normalizedQuery || normalizedQuery.length < 2) {
       res.json({ status: 'ok', data: [] });
       return;
     }
@@ -15,11 +16,11 @@ export async function searchCities(req: Request, res: Response, next: NextFuncti
     const airports = await prisma.airport.findMany({
       where: {
         OR: [
-          { city: { startsWith: q, mode: 'insensitive' } },
-          { name: { startsWith: q, mode: 'insensitive' } },
-          { code: { startsWith: q, mode: 'insensitive' } },
-          { city: { contains: q, mode: 'insensitive' } },
-          { name: { contains: q, mode: 'insensitive' } },
+          { city: { startsWith: normalizedQuery, mode: 'insensitive' } },
+          { name: { startsWith: normalizedQuery, mode: 'insensitive' } },
+          { code: { startsWith: normalizedQuery, mode: 'insensitive' } },
+          { city: { contains: normalizedQuery, mode: 'insensitive' } },
+          { name: { contains: normalizedQuery, mode: 'insensitive' } },
         ],
       },
       orderBy: { city: 'asc' },

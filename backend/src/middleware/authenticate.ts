@@ -20,7 +20,7 @@ declare global {
  * 
  * Usage: router.post('/protected', authenticate, handler)
  */
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -34,7 +34,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = authHeader.split(' ')[1];
 
   try {
-    req.user = verifyToken(token);
+    req.user = await verifyToken(token);
     next();
   } catch {
     res.status(401).json({

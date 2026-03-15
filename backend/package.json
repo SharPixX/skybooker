@@ -10,7 +10,7 @@
     "seed": "npx ts-node src/seed.ts",
     "bootstrap:remote": "npx ts-node src/bootstrapRemoteDb.ts",
     "seed:seats": "npx ts-node src/seed-seats.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test -r ts-node/register \"src/**/*.test.ts\""
   },
   "keywords": [],
   "author": "",

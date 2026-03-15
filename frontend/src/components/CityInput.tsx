@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { MapPin, PlaneLanding, PlaneTakeoff } from 'lucide-react';
+import { isAxiosError } from 'axios';
+import { Loader2, MapPin, PlaneLanding, PlaneTakeoff } from 'lucide-react';
 import { searchCities } from '../api';
 import type { City } from '../types';
 
@@ -21,29 +22,71 @@ export default function CityInput({
   const [query, setQuery] = useState(value);
   const [suggestions, setSuggestions] = useState<City[]>([]);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [hasResolvedQuery, setHasResolvedQuery] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const requestRef = useRef(0);
 
   useEffect(() => {
     setQuery(value);
   }, [value]);
 
   useEffect(() => {
-    if (!query.trim()) {
+    const normalizedQuery = query.trim();
+
+    if (normalizedQuery.length < 2) {
       setSuggestions([]);
+      setOpen(false);
+      setLoading(false);
+      setHasResolvedQuery(false);
       return;
     }
 
+    const currentRequestId = requestRef.current + 1;
+    requestRef.current = currentRequestId;
+    const controller = new AbortController();
+
     const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setHasResolvedQuery(false);
+
       try {
-        const cities = await searchCities(query);
+        const cities = await searchCities(normalizedQuery, controller.signal);
+
+        if (requestRef.current !== currentRequestId) {
+          return;
+        }
+
         setSuggestions(cities);
-        setOpen(cities.length > 0);
-      } catch {
+        setOpen(true);
+        setHasResolvedQuery(true);
+      } catch (unknownError) {
+        if (requestRef.current !== currentRequestId) {
+          return;
+        }
+
+        if (isAxiosError(unknownError) && unknownError.code === 'ERR_CANCELED') {
+          return;
+        }
+
+        if (unknownError instanceof Error && unknownError.name === 'CanceledError') {
+          return;
+        }
+
         setSuggestions([]);
+        setOpen(true);
+        setHasResolvedQuery(true);
+      } finally {
+        if (requestRef.current === currentRequestId) {
+          setLoading(false);
+        }
       }
     }, 220);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, [query]);
 
   useEffect(() => {
@@ -58,6 +101,8 @@ export default function CityInput({
   }, []);
 
   const Icon = type === 'from' ? PlaneTakeoff : PlaneLanding;
+  const showDropdown = open && query.trim().length >= 2;
+  const showEmptyState = showDropdown && !loading && hasResolvedQuery && suggestions.length === 0;
 
   return (
     <div ref={rootRef} className="relative min-w-0">
@@ -80,15 +125,17 @@ export default function CityInput({
             onChange(nextValue);
           }}
           onFocus={() => {
-            if (suggestions.length > 0) {
+            if (query.trim().length >= 2) {
               setOpen(true);
             }
           }}
           className="w-full bg-transparent text-[1rem] font-semibold text-[var(--air-ink)] outline-none placeholder:text-[var(--air-muted)]"
         />
+
+        {loading && <Loader2 className="h-4 w-4 animate-spin text-[var(--air-muted)]" />}
       </div>
 
-      {open && suggestions.length > 0 && (
+      {showDropdown && (
         <div className="absolute left-0 top-[calc(100%+10px)] z-50 w-full overflow-hidden rounded-[24px] border border-[var(--air-border-strong)] bg-[rgba(255,255,255,0.98)] shadow-[0_28px_72px_rgba(16,24,38,0.16)]">
           <div className="max-h-72 overflow-y-auto p-2">
             {suggestions.map((city) => (
@@ -98,6 +145,7 @@ export default function CityInput({
                 onClick={() => {
                   setQuery(city.full);
                   onChange(city.full);
+                  setSuggestions([]);
                   setOpen(false);
                 }}
                 className="flex w-full items-start gap-3 rounded-[18px] px-3 py-3 text-left transition-colors hover:bg-[rgba(16,24,38,0.05)]"
@@ -113,6 +161,19 @@ export default function CityInput({
                 </div>
               </button>
             ))}
+
+            {loading && (
+              <div className="flex items-center gap-3 rounded-[18px] px-3 py-3 text-sm font-semibold text-[var(--air-muted)]">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Ищем аэропорты и города...
+              </div>
+            )}
+
+            {showEmptyState && (
+              <div className="rounded-[18px] px-3 py-3 text-sm text-[var(--air-muted)]">
+                Ничего не нашли. Попробуйте ввести город, код аэропорта или название терминала точнее.
+              </div>
+            )}
           </div>
         </div>
       )}

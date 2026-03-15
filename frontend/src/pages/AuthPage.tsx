@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { isAxiosError } from 'axios';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Lock, Mail, ShieldCheck, Ticket, User2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { APP_MODE_DESCRIPTION, IS_DEMO_MODE } from '../api';
+import { useAuth } from '../context/useAuth';
 
 const accountBenefits = [
   'Храните билеты, статусы удержания и историю перелетов в одном месте.',
@@ -172,6 +173,12 @@ export default function AuthPage() {
                   <div>Доступ к бронированиям защищен. Данные используются только для кабинета пассажира и уведомлений по поездке.</div>
                 </div>
               </div>
+
+              {IS_DEMO_MODE && (
+                <div className="rounded-[24px] border border-[rgba(41,80,215,0.14)] bg-[rgba(79,130,255,0.08)] px-4 py-4 text-sm font-semibold text-[var(--air-blue-deep)]">
+                  {APP_MODE_DESCRIPTION}
+                </div>
+              )}
 
               <button type="submit" disabled={loading} className="air-primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-60">
                 {loading ? (

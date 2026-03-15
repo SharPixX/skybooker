@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { LogIn, Search, UserCircle2 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { APP_MODE_DESCRIPTION, IS_DEMO_MODE } from '../api';
+import { useAuth } from '../context/useAuth';
 
 const mainLinks = [
   { label: 'Направления', href: '/#destinations' },
@@ -51,12 +52,23 @@ export default function Header() {
             <span className="relative text-lg font-extrabold tracking-[-0.04em] text-[var(--air-panel)]">A</span>
             <span className="relative -ml-1 text-lg font-extrabold tracking-[-0.04em] text-white">Y</span>
           </div>
+
           <div className="leading-none">
             <div className="text-xs font-extrabold uppercase tracking-[0.2em] text-[var(--air-muted)]">
               Авиакомпания
             </div>
-            <div className="mt-1 text-[1.15rem] font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">
-              Yandex Air
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <div className="text-[1.15rem] font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">
+                Yandex Air
+              </div>
+              {IS_DEMO_MODE && (
+                <div
+                  className="rounded-full border border-[rgba(41,80,215,0.12)] bg-[rgba(79,130,255,0.1)] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-blue-deep)]"
+                  title={APP_MODE_DESCRIPTION}
+                >
+                  Demo mode
+                </div>
+              )}
             </div>
           </div>
         </Link>

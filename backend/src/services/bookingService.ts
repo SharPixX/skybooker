@@ -252,6 +252,17 @@ export async function getBookingById(bookingId: string, requestUserId: string) {
   return booking;
 }
 
+export async function listBookingsForUser(requestUserId: string) {
+  return prisma.booking.findMany({
+    where: { userId: requestUserId },
+    include: BOOKING_INCLUDE,
+    orderBy: [
+      { createdAt: 'desc' },
+      { id: 'desc' },
+    ],
+  });
+}
+
 /**
  * Clean up expired bookings using batch operations.
  *

@@ -160,6 +160,12 @@ type SearchMockFlightsParams = {
 
 let cachedFlights: Flight[] | null = null;
 
+type StoredBooking = Booking | Omit<Booking, 'confirmationMode'>;
+
+function isBrowser() {
+  return typeof window !== 'undefined';
+}
+
 function startOfTodayUtc() {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
@@ -359,20 +365,39 @@ export function getMockFlightById(id: string): Flight | null {
   };
 }
 
+function normalizeStoredBooking(booking: StoredBooking): Booking {
+  return {
+    ...booking,
+    confirmationMode: 'demo',
+  };
+}
+
 function readMockBookings(): Record<string, Booking> {
+  if (!isBrowser()) {
+    return {};
+  }
+
   const raw = sessionStorage.getItem(MOCK_STORAGE_KEY);
   if (!raw) {
     return {};
   }
 
   try {
-    return JSON.parse(raw) as Record<string, Booking>;
+    const parsed = JSON.parse(raw) as Record<string, StoredBooking>;
+
+    return Object.fromEntries(
+      Object.entries(parsed).map(([id, booking]) => [id, normalizeStoredBooking(booking)]),
+    );
   } catch {
     return {};
   }
 }
 
 function writeMockBookings(bookings: Record<string, Booking>) {
+  if (!isBrowser()) {
+    return;
+  }
+
   sessionStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(bookings));
 }
 
@@ -383,6 +408,7 @@ export function createMockBooking(flight: Flight, seat: Seat): Booking {
     userId: 'demo-user',
     seatId: seat.id,
     status: 'PENDING',
+    confirmationMode: 'demo',
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
     seat: {
@@ -414,6 +440,12 @@ export function updateMockBookingStatus(id: string, status: Booking['status']): 
   bookings[id] = updated;
   writeMockBookings(bookings);
   return updated;
+}
+
+export function listMockBookings(): Booking[] {
+  return Object.values(readMockBookings()).sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
 }
 
 export function getMockBookingById(id: string): Booking | null {

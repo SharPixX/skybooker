@@ -60,7 +60,7 @@ export type CreateBookingBody = z.infer<typeof createBookingSchema>;
 export type SearchCitiesQuery = z.infer<typeof searchCitiesSchema>;
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100),
+  name: z.string().trim().min(1, 'Name is required').max(100),
 });
 
 export const updatePasswordSchema = z.object({

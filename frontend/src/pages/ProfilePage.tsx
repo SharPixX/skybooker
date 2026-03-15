@@ -4,9 +4,9 @@ import { ru } from 'date-fns/locale';
 import { isAxiosError } from 'axios';
 import { Link, Navigate } from 'react-router-dom';
 import { Bell, LogOut, Settings, Ticket, User2 } from 'lucide-react';
-import { updatePasswordApi, updateProfileApi } from '../api';
-import { getRecentBookings, type RecentBookingSummary } from '../recentBookings';
-import { useAuth } from '../context/AuthContext';
+import { APP_MODE_DESCRIPTION, IS_DEMO_MODE, getMyBookings, updatePasswordApi, updateProfileApi } from '../api';
+import { useAuth } from '../context/useAuth';
+import type { Booking } from '../types';
 
 const tabs = [
   { id: 'overview', label: 'Сводка', icon: Ticket },
@@ -15,7 +15,7 @@ const tabs = [
   { id: 'settings', label: 'Настройки', icon: Settings },
 ] as const;
 
-function getStatusLabel(status: RecentBookingSummary['status']) {
+function getStatusLabel(status: Booking['status']) {
   if (status === 'CONFIRMED') {
     return 'Подтверждено';
   }
@@ -31,7 +31,7 @@ function getStatusLabel(status: RecentBookingSummary['status']) {
   return 'Ошибка оплаты';
 }
 
-function getStatusTone(status: RecentBookingSummary['status']) {
+function getStatusTone(status: Booking['status']) {
   if (status === 'CONFIRMED') {
     return 'bg-[rgba(20,133,111,0.08)] text-[var(--air-emerald)]';
   }
@@ -48,7 +48,7 @@ function getStatusTone(status: RecentBookingSummary['status']) {
 }
 
 export default function ProfilePage() {
-  const { user, setUser, isAuthenticated, loading, logout } = useAuth();
+  const { user, setUser, replaceToken, isAuthenticated, loading, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]['id']>('overview');
   const [profileName, setProfileName] = useState('');
   const [oldPassword, setOldPassword] = useState('');
@@ -57,28 +57,63 @@ export default function ProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const [recentBookings, setRecentBookings] = useState<RecentBookingSummary[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
+  const [bookingsError, setBookingsError] = useState('');
 
   useEffect(() => {
     setProfileName(user?.name || '');
   }, [user?.name]);
 
   useEffect(() => {
-    const syncRecentBookings = () => setRecentBookings(getRecentBookings());
+    if (!isAuthenticated) {
+      return;
+    }
 
-    syncRecentBookings();
-    window.addEventListener('storage', syncRecentBookings);
+    let cancelled = false;
 
-    return () => window.removeEventListener('storage', syncRecentBookings);
-  }, []);
+    async function loadBookings() {
+      setBookingsLoading(true);
+      setBookingsError('');
+
+      try {
+        const nextBookings = await getMyBookings();
+        if (!cancelled) {
+          setBookings(nextBookings);
+        }
+      } catch (unknownError) {
+        if (cancelled) {
+          return;
+        }
+
+        if (isAxiosError(unknownError)) {
+          setBookingsError(unknownError.response?.data?.message || 'Не удалось загрузить список бронирований.');
+        } else if (unknownError instanceof Error) {
+          setBookingsError(unknownError.message);
+        } else {
+          setBookingsError('Не удалось загрузить список бронирований.');
+        }
+      } finally {
+        if (!cancelled) {
+          setBookingsLoading(false);
+        }
+      }
+    }
+
+    loadBookings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   const nextTrip = useMemo(() => {
-    const sorted = [...recentBookings].sort(
-      (left, right) => new Date(left.departureTime).getTime() - new Date(right.departureTime).getTime(),
+    const sorted = [...bookings].sort(
+      (left, right) => new Date(left.seat.flight.departureTime).getTime() - new Date(right.seat.flight.departureTime).getTime(),
     );
 
-    return sorted.find((item) => new Date(item.departureTime).getTime() >= Date.now()) || sorted[0] || null;
-  }, [recentBookings]);
+    return sorted.find((item) => new Date(item.seat.flight.departureTime).getTime() >= Date.now()) || sorted[0] || null;
+  }, [bookings]);
 
   if (loading) {
     return (
@@ -124,7 +159,10 @@ export default function ProfilePage() {
     setPasswordMessage('');
 
     try {
-      await updatePasswordApi(oldPassword, newPassword);
+      const result = await updatePasswordApi(oldPassword, newPassword);
+      if (result?.token) {
+        replaceToken(result.token);
+      }
       setOldPassword('');
       setNewPassword('');
       setPasswordMessage('Пароль обновлен.');
@@ -141,7 +179,7 @@ export default function ProfilePage() {
     }
   };
 
-  const confirmedCount = recentBookings.filter((item) => item.status === 'CONFIRMED').length;
+  const confirmedCount = bookings.filter((item) => item.status === 'CONFIRMED').length;
 
   return (
     <div className="air-page">
@@ -218,6 +256,11 @@ export default function ProfilePage() {
           </aside>
 
           <section className="air-surface-card-strong px-5 py-6 md:px-8 md:py-8">
+            {IS_DEMO_MODE && (
+              <div className="mb-6 rounded-[22px] border border-[rgba(41,80,215,0.14)] bg-[rgba(79,130,255,0.08)] px-4 py-3 text-sm font-semibold text-[var(--air-blue-deep)]">
+                {APP_MODE_DESCRIPTION}
+              </div>
+            )}
             {activeTab === 'overview' && (
               <div>
                 <div className="air-section-kicker">Сводка</div>
@@ -225,16 +268,24 @@ export default function ProfilePage() {
                   Все, что важно после покупки
                 </h1>
 
-                {nextTrip ? (
+                {bookingsLoading ? (
+                  <div className="mt-8 rounded-[28px] border border-[var(--air-border)] bg-[rgba(17,24,39,0.03)] p-6 text-sm leading-relaxed text-[var(--air-muted)]">
+                    Загружаем данные по поездкам...
+                  </div>
+                ) : bookingsError ? (
+                  <div className="mt-8 rounded-[28px] border border-[rgba(213,78,78,0.18)] bg-[rgba(213,78,78,0.08)] p-6 text-sm leading-relaxed text-[var(--air-danger)]">
+                    {bookingsError}
+                  </div>
+                ) : nextTrip ? (
                   <div className="mt-8 rounded-[28px] border border-[var(--air-border)] bg-[rgba(17,24,39,0.03)] p-5 md:p-6">
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                       <div>
                         <div className="air-quiet-label">Ближайшая поездка</div>
                         <div className="mt-2 text-3xl font-extrabold tracking-[-0.05em] text-[var(--air-ink)]">
-                          {nextTrip.route}
+                          {nextTrip.seat.flight.departureAirport.city} → {nextTrip.seat.flight.destinationAirport.city}
                         </div>
                         <div className="mt-3 text-sm text-[var(--air-muted)]">
-                          {format(new Date(nextTrip.departureTime), 'd MMMM yyyy, HH:mm', { locale: ru })} • рейс {nextTrip.flightNumber}
+                          {format(new Date(nextTrip.seat.flight.departureTime), 'd MMMM yyyy, HH:mm', { locale: ru })} • рейс {nextTrip.seat.flight.flightNumber}
                         </div>
                       </div>
                       <div className={`rounded-full px-3 py-1 text-xs font-extrabold ${getStatusTone(nextTrip.status)}`}>
@@ -245,11 +296,11 @@ export default function ProfilePage() {
                     <div className="mt-6 grid gap-3 md:grid-cols-3">
                       <div className="air-data-card">
                         <div className="air-quiet-label">Место</div>
-                        <strong>{nextTrip.seatNumber}</strong>
+                        <strong>{nextTrip.seat.seatNumber}</strong>
                       </div>
                       <div className="air-data-card">
                         <div className="air-quiet-label">Стоимость</div>
-                        <strong>{parseFloat(nextTrip.price).toLocaleString('ru-RU')} ₽</strong>
+                        <strong>{parseFloat(nextTrip.seat.price).toLocaleString('ru-RU')} ₽</strong>
                       </div>
                       <div className="air-data-card">
                         <div className="air-quiet-label">Действие</div>
@@ -280,7 +331,15 @@ export default function ProfilePage() {
                 </h1>
 
                 <div className="mt-6 space-y-4">
-                  {recentBookings.length === 0 ? (
+                  {bookingsLoading ? (
+                    <div className="rounded-[28px] border border-[var(--air-border)] bg-[rgba(17,24,39,0.03)] p-6 text-sm leading-relaxed text-[var(--air-muted)]">
+                      Загружаем список бронирований...
+                    </div>
+                  ) : bookingsError ? (
+                    <div className="rounded-[28px] border border-[rgba(213,78,78,0.18)] bg-[rgba(213,78,78,0.08)] p-6 text-sm leading-relaxed text-[var(--air-danger)]">
+                      {bookingsError}
+                    </div>
+                  ) : bookings.length === 0 ? (
                     <div className="rounded-[28px] border border-dashed border-[var(--air-border-strong)] bg-[rgba(17,24,39,0.02)] p-6 text-sm leading-relaxed text-[var(--air-muted)]">
                       Пока нет сохраненных бронирований. Найдите рейс и создайте первую бронь.
                       <div className="mt-4">
@@ -290,16 +349,16 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   ) : (
-                    recentBookings.map((booking) => (
+                    bookings.map((booking) => (
                       <Link key={booking.id} to={`/booking/${booking.id}`} className="air-link-card block px-5 py-5">
                         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                           <div>
-                            <div className="air-quiet-label">{booking.flightNumber}</div>
+                            <div className="air-quiet-label">{booking.seat.flight.flightNumber}</div>
                             <div className="mt-2 text-2xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">
-                              {booking.route}
+                              {booking.seat.flight.departureAirport.city} → {booking.seat.flight.destinationAirport.city}
                             </div>
                             <div className="mt-2 text-sm text-[var(--air-muted)]">
-                              {format(new Date(booking.departureTime), 'd MMMM yyyy, HH:mm', { locale: ru })} • место {booking.seatNumber}
+                              {format(new Date(booking.seat.flight.departureTime), 'd MMMM yyyy, HH:mm', { locale: ru })} • место {booking.seat.seatNumber}
                             </div>
                           </div>
 
@@ -308,7 +367,7 @@ export default function ProfilePage() {
                               {getStatusLabel(booking.status)}
                             </div>
                             <div className="text-lg font-extrabold text-[var(--air-ink)]">
-                              {parseFloat(booking.price).toLocaleString('ru-RU')} ₽
+                              {parseFloat(booking.seat.price).toLocaleString('ru-RU')} ₽
                             </div>
                           </div>
                         </div>

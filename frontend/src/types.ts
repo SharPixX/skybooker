@@ -54,11 +54,14 @@ export interface Pagination {
   totalPages: number;
 }
 
+export type BookingConfirmationMode = 'demo' | 'manual' | 'disabled';
+
 export interface Booking {
   id: string;
   userId: string;
   seatId: string;
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'FAILED';
+  confirmationMode: BookingConfirmationMode;
   expiresAt: string;
   createdAt: string;
   seat: Seat & {

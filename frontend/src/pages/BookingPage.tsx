@@ -1,41 +1,81 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { isAxiosError } from 'axios';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { CheckCircle2, Clock3, Copy, Loader2, ShieldCheck, Ticket, XCircle } from 'lucide-react';
-import { cancelBooking, confirmBooking, getBooking } from '../api';
-import { getMockBookingById, updateMockBookingStatus } from '../mockData';
-import { saveRecentBooking } from '../recentBookings';
-import type { Booking } from '../types';
+import { Link, useParams } from 'react-router-dom';
+import {
+  APP_MODE_DESCRIPTION,
+  IS_DEMO_MODE,
+  cancelBooking,
+  confirmBooking,
+  getBooking,
+} from '../api';
+import {
+  canConfirmBookings,
+  getBookingConfirmationDescription,
+  getBookingConfirmationLabel,
+} from '../bookingConfirmation';
+import { updateMockBookingStatus } from '../mockData';
+import type { Booking, BookingConfirmationMode } from '../types';
 
-const statusConfig = {
-  PENDING: {
-    title: 'Ожидаем подтверждение оплаты',
-    subtitle: 'Место удерживается за вами. Завершите оплату, пока таймер активен.',
+type StatusTone = 'warning' | 'success' | 'neutral' | 'danger';
+
+function getStatusConfig(status: Booking['status'], confirmationMode: BookingConfirmationMode) {
+  if (status === 'CONFIRMED') {
+    return {
+      title: 'Билет оформлен',
+      subtitle: 'Маршрут подтвержден. Детали поездки и статус доступны в кабинете пассажира.',
+      icon: CheckCircle2,
+      tone: 'success' as StatusTone,
+    };
+  }
+
+  if (status === 'CANCELLED') {
+    return {
+      title: 'Бронирование отменено',
+      subtitle: 'Место вернулось в продажу. При необходимости маршрут можно выбрать заново.',
+      icon: XCircle,
+      tone: 'neutral' as StatusTone,
+    };
+  }
+
+  if (status === 'FAILED') {
+    return {
+      title: 'Подтверждение не завершено',
+      subtitle: 'Проверьте статус брони и при необходимости начните выбор маршрута заново.',
+      icon: XCircle,
+      tone: 'danger' as StatusTone,
+    };
+  }
+
+  if (confirmationMode === 'demo') {
+    return {
+      title: 'Ожидаем демо-подтверждение',
+      subtitle: 'Место удерживается за вами. Завершите демонстрационное подтверждение, пока таймер активен.',
+      icon: Clock3,
+      tone: 'warning' as StatusTone,
+    };
+  }
+
+  if (confirmationMode === 'manual') {
+    return {
+      title: 'Бронь ожидает ручного подтверждения',
+      subtitle: 'Платежный шлюз в этой сборке не подключен. Для демонстрации финального шага бронь можно подтвердить вручную.',
+      icon: Clock3,
+      tone: 'warning' as StatusTone,
+    };
+  }
+
+  return {
+    title: 'Бронь ожидает подтверждения',
+    subtitle: 'Место удерживается ограниченное время. Подтверждение в этой сборке отключено, пока не подключен платежный шлюз.',
     icon: Clock3,
-    tone: 'warning',
-  },
-  CONFIRMED: {
-    title: 'Билет оформлен',
-    subtitle: 'Маршрут подтвержден. Детали поездки доступны в кабинете пассажира.',
-    icon: CheckCircle2,
-    tone: 'success',
-  },
-  CANCELLED: {
-    title: 'Бронирование отменено',
-    subtitle: 'Место вернулось в продажу. При необходимости маршрут можно выбрать заново.',
-    icon: XCircle,
-    tone: 'neutral',
-  },
-  FAILED: {
-    title: 'Не удалось завершить оплату',
-    subtitle: 'Проверьте статус оплаты и попробуйте выбрать другой рейс.',
-    icon: XCircle,
-    tone: 'danger',
-  },
-} as const;
+    tone: 'warning' as StatusTone,
+  };
+}
 
-function getStatusClasses(tone: 'warning' | 'success' | 'neutral' | 'danger') {
+function getStatusClasses(tone: StatusTone) {
   if (tone === 'success') {
     return 'border-[rgba(20,133,111,0.18)] bg-[rgba(20,133,111,0.08)] text-[var(--air-emerald)]';
   }
@@ -49,6 +89,39 @@ function getStatusClasses(tone: 'warning' | 'success' | 'neutral' | 'danger') {
   }
 
   return 'border-[rgba(17,24,39,0.12)] bg-[rgba(17,24,39,0.04)] text-[var(--air-muted-strong)]';
+}
+
+function getNextStepsCopy(confirmationMode: BookingConfirmationMode) {
+  if (confirmationMode === 'demo') {
+    return [
+      'Подтвердите бронь, чтобы завершить демонстрационный сценарий и сохранить маршрут в локальном кабинете.',
+      'Этот шаг не отправляет оплату в платежный шлюз: он нужен только для показа полного booking flow.',
+    ];
+  }
+
+  if (confirmationMode === 'manual') {
+    return [
+      'В этой сборке финальный шаг оформлен как ручное подтверждение, чтобы показать полный сценарий без интеграции платежей.',
+      'После подтверждения маршрут сохранится в кабинете, а статус брони сменится на оформленный билет.',
+    ];
+  }
+
+  return [
+    'Подтверждение брони отключено, потому что платежный шлюз еще не подключен.',
+    'Этот экран показывает честный pending-state live-сборки: место удерживается, но финальный шаг пока недоступен.',
+  ];
+}
+
+function getControlStatusCopy(confirmationMode: BookingConfirmationMode) {
+  if (confirmationMode === 'demo') {
+    return 'Статус бронирования меняется локально в демонстрационном сценарии и показывает полный пользовательский путь.';
+  }
+
+  if (confirmationMode === 'manual') {
+    return 'Статус обновляется после ручного подтверждения. Это честная замена платежному шагу для портфельной сборки.';
+  }
+
+  return 'Статус останется в ожидании, пока подтверждение отключено. Для полного flow используйте demo mode или подключите платежный слой.';
 }
 
 export default function BookingPage() {
@@ -72,10 +145,11 @@ export default function BookingPage() {
       try {
         const data = await getBooking(id);
         setBooking(data);
-      } catch {
-        const mockBooking = getMockBookingById(id);
-        if (mockBooking) {
-          setBooking(mockBooking);
+      } catch (unknownError) {
+        if (isAxiosError(unknownError)) {
+          setError(unknownError.response?.data?.message || 'Бронирование не найдено.');
+        } else if (unknownError instanceof Error) {
+          setError(unknownError.message);
         } else {
           setError('Бронирование не найдено.');
         }
@@ -84,14 +158,8 @@ export default function BookingPage() {
       }
     }
 
-    loadBooking();
+    void loadBooking();
   }, [id]);
-
-  useEffect(() => {
-    if (booking) {
-      saveRecentBooking(booking);
-    }
-  }, [booking]);
 
   useEffect(() => {
     if (booking?.status !== 'PENDING' || !id) {
@@ -155,9 +223,10 @@ export default function BookingPage() {
     }
 
     setCancelling(true);
+    setError('');
 
     try {
-      if (booking?.id.startsWith('demo-')) {
+      if (booking?.confirmationMode === 'demo') {
         const updatedBooking = updateMockBookingStatus(booking.id, 'CANCELLED');
         if (updatedBooking) {
           setBooking(updatedBooking);
@@ -167,15 +236,19 @@ export default function BookingPage() {
 
       const data = await cancelBooking(id);
       setBooking(data);
-    } catch {
-      setError('Не удалось отменить бронирование.');
+    } catch (unknownError) {
+      if (isAxiosError(unknownError)) {
+        setError(unknownError.response?.data?.message || 'Не удалось отменить бронирование.');
+      } else {
+        setError('Не удалось отменить бронирование.');
+      }
     } finally {
       setCancelling(false);
     }
   };
 
   const handleConfirm = async () => {
-    if (!id || !booking) {
+    if (!id || !booking || !canConfirmBookings(booking.confirmationMode)) {
       return;
     }
 
@@ -183,7 +256,7 @@ export default function BookingPage() {
     setError('');
 
     try {
-      if (booking.id.startsWith('demo-')) {
+      if (booking.confirmationMode === 'demo') {
         const updatedBooking = updateMockBookingStatus(booking.id, 'CONFIRMED');
         if (updatedBooking) {
           setBooking(updatedBooking);
@@ -193,8 +266,14 @@ export default function BookingPage() {
 
       const data = await confirmBooking(id);
       setBooking(data);
-    } catch {
-      setError('Не удалось подтвердить бронирование.');
+    } catch (unknownError) {
+      if (isAxiosError(unknownError)) {
+        setError(unknownError.response?.data?.message || 'Не удалось подтвердить бронь.');
+      } else if (unknownError instanceof Error) {
+        setError(unknownError.message);
+      } else {
+        setError('Не удалось подтвердить бронь.');
+      }
     } finally {
       setConfirming(false);
     }
@@ -241,9 +320,17 @@ export default function BookingPage() {
     );
   }
 
-  const config = statusConfig[booking.status];
+  const BOOKING_CONFIRMATION_MODE = booking.confirmationMode;
+  const CAN_CONFIRM_BOOKINGS = canConfirmBookings(BOOKING_CONFIRMATION_MODE);
+  const BOOKING_CONFIRMATION_DESCRIPTION = getBookingConfirmationDescription(BOOKING_CONFIRMATION_MODE);
+  const BOOKING_CONFIRMATION_LABEL = getBookingConfirmationLabel(BOOKING_CONFIRMATION_MODE);
+  const config = getStatusConfig(booking.status, BOOKING_CONFIRMATION_MODE);
   const StatusIcon = config.icon;
   const flight = booking.seat.flight;
+  const nextSteps = getNextStepsCopy(BOOKING_CONFIRMATION_MODE);
+  const controlStatusCopy = getControlStatusCopy(BOOKING_CONFIRMATION_MODE);
+  const confirmButtonLabel =
+    BOOKING_CONFIRMATION_MODE === 'demo' ? 'Подтвердить демо-бронирование' : 'Подтвердить бронь вручную';
 
   return (
     <div className="air-page">
@@ -366,13 +453,24 @@ export default function BookingPage() {
               <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
                 Следующие шаги
               </div>
+
+              <div className="mt-4 rounded-[20px] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-white/78">
+                {IS_DEMO_MODE ? APP_MODE_DESCRIPTION : BOOKING_CONFIRMATION_DESCRIPTION}
+              </div>
+
+              <div className="mt-5 rounded-[20px] border border-white/10 bg-white/5 px-4 py-3">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/54">Режим подтверждения</div>
+                <div className="mt-2 text-lg font-extrabold text-white">{BOOKING_CONFIRMATION_LABEL}</div>
+              </div>
+
               <div className="mt-5 space-y-4 text-sm leading-relaxed text-white/72 md:text-base">
-                <p>Подтвердите бронь, чтобы закрепить место и сохранить маршрут в кабинете пассажира.</p>
-                <p>Если статус уже изменился, маршрут и дальнейшие действия будут доступны в кабинете.</p>
+                {nextSteps.map((paragraph) => (
+                  <p key={paragraph}>{paragraph}</p>
+                ))}
               </div>
 
               <div className="mt-6 grid gap-3">
-                {booking.status === 'PENDING' && (
+                {booking.status === 'PENDING' && CAN_CONFIRM_BOOKINGS && (
                   <button type="button" onClick={handleConfirm} disabled={confirming} className="air-primary-button justify-center">
                     {confirming ? (
                       <>
@@ -380,9 +478,15 @@ export default function BookingPage() {
                         Подтверждаем бронь
                       </>
                     ) : (
-                      'Подтвердить бронирование'
+                      confirmButtonLabel
                     )}
                   </button>
+                )}
+
+                {booking.status === 'PENDING' && !CAN_CONFIRM_BOOKINGS && (
+                  <div className="rounded-[20px] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-white/74">
+                    Подтверждение недоступно в этой сборке. Для полного сценария используйте demo mode.
+                  </div>
                 )}
 
                 <Link to="/profile" className="air-tertiary-button justify-center">
@@ -401,9 +505,7 @@ export default function BookingPage() {
                 </div>
                 <div>
                   <div className="text-lg font-extrabold text-[var(--air-ink)]">Контроль статуса</div>
-                  <div className="mt-1 text-sm text-[var(--air-muted)]">
-                    Бронирование обновляется автоматически, пока оплата находится в процессе.
-                  </div>
+                  <div className="mt-1 text-sm text-[var(--air-muted)]">{controlStatusCopy}</div>
                 </div>
               </div>
 

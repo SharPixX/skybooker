@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import { isAxiosError } from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { ArrowRight, ChevronDown, Clock3, Filter, Loader2, Plane, Ticket, Users } from 'lucide-react';
-import { searchFlights } from '../api';
+import { APP_MODE_DESCRIPTION, IS_DEMO_MODE, searchFlights } from '../api';
 import { searchMockFlights } from '../mockData';
 import type { Flight, Pagination } from '../types';
 import BookingSearchPanel from '../components/BookingSearchPanel';
@@ -67,6 +68,7 @@ export default function FlightsPage() {
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
   const [sortBy, setSortBy] = useState<'price' | 'time' | 'duration'>('price');
   const [usingMockData, setUsingMockData] = useState(false);
 
@@ -83,6 +85,7 @@ export default function FlightsPage() {
       setLoading(true);
       setPagination(null);
       setUsingMockData(false);
+      setError('');
 
       try {
         const { flights: data, pagination: pageInfo } = await searchFlights({
@@ -95,18 +98,30 @@ export default function FlightsPage() {
 
         setFlights(data);
         setPagination(pageInfo);
-      } catch {
-        const fallback = searchMockFlights({
-          from,
-          to,
-          date,
-          page: 1,
-          limit: PAGE_SIZE,
-        });
+      } catch (unknownError) {
+        if (IS_DEMO_MODE) {
+          const fallback = searchMockFlights({
+            from,
+            to,
+            date,
+            page: 1,
+            limit: PAGE_SIZE,
+          });
 
-        setUsingMockData(true);
-        setFlights(fallback.flights);
-        setPagination(fallback.pagination);
+          setUsingMockData(true);
+          setFlights(fallback.flights);
+          setPagination(fallback.pagination);
+        } else {
+          setFlights([]);
+          setPagination(null);
+          if (isAxiosError(unknownError)) {
+            setError(unknownError.response?.data?.message || 'Не удалось загрузить рейсы для выбранного маршрута.');
+          } else if (unknownError instanceof Error) {
+            setError(unknownError.message);
+          } else {
+            setError('Не удалось загрузить рейсы для выбранного маршрута.');
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -121,6 +136,7 @@ export default function FlightsPage() {
     }
 
     setLoadingMore(true);
+    setError('');
 
     try {
       if (usingMockData) {
@@ -149,23 +165,31 @@ export default function FlightsPage() {
 
       setFlights((current) => [...current, ...data]);
       setPagination(pageInfo);
-    } catch {
-      const nextPage = (pagination?.page ?? 1) + 1;
-      const pages = Array.from({ length: nextPage }, (_, index) =>
-        searchMockFlights({
-          from,
-          to,
-          date,
-          page: index + 1,
-          limit: PAGE_SIZE,
-        }),
-      );
+    } catch (unknownError) {
+      if (IS_DEMO_MODE) {
+        const nextPage = (pagination?.page ?? 1) + 1;
+        const pages = Array.from({ length: nextPage }, (_, index) =>
+          searchMockFlights({
+            from,
+            to,
+            date,
+            page: index + 1,
+            limit: PAGE_SIZE,
+          }),
+        );
 
-      const fallback = pages[pages.length - 1];
-      const combinedFlights = pages.flatMap((pageResult) => pageResult.flights);
-      setUsingMockData(true);
-      setFlights(combinedFlights);
-      setPagination(fallback.pagination);
+        const fallback = pages[pages.length - 1];
+        const combinedFlights = pages.flatMap((pageResult) => pageResult.flights);
+        setUsingMockData(true);
+        setFlights(combinedFlights);
+        setPagination(fallback.pagination);
+      } else if (isAxiosError(unknownError)) {
+        setError(unknownError.response?.data?.message || 'Не удалось догрузить рейсы.');
+      } else if (unknownError instanceof Error) {
+        setError(unknownError.message);
+      } else {
+        setError('Не удалось догрузить рейсы.');
+      }
     } finally {
       setLoadingMore(false);
     }
@@ -252,9 +276,9 @@ export default function FlightsPage() {
             </div>
           </div>
 
-          {usingMockData && (
+          {IS_DEMO_MODE && (
             <div className="mt-5 inline-flex rounded-full border border-white/12 bg-white/8 px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/68">
-              Показаны доступные варианты для выбранного направления
+              {APP_MODE_DESCRIPTION}
             </div>
           )}
         </section>
@@ -305,6 +329,18 @@ export default function FlightsPage() {
             <div className="air-surface-card flex items-center justify-center gap-3 px-5 py-14 text-[var(--air-muted)]">
               <Loader2 className="h-5 w-5 animate-spin" />
               Загружаем рейсы...
+            </div>
+          ) : error ? (
+            <div className="air-surface-card px-6 py-12 text-center">
+              <div className="text-2xl font-extrabold text-[var(--air-ink)]">Не удалось загрузить рейсы</div>
+              <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">
+                {error}
+              </div>
+              <div className="mt-6 flex justify-center">
+                <Link to="/#search" className="air-secondary-button">
+                  Вернуться к поиску
+                </Link>
+              </div>
             </div>
           ) : sortedFlights.length === 0 ? (
             <div className="air-surface-card px-6 py-12 text-center">

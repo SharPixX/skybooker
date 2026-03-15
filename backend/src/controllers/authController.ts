@@ -63,12 +63,12 @@ export async function updateProfileHandler(req: Request, res: Response, next: Ne
 export async function updatePasswordHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { oldPassword, newPassword } = req.body as { oldPassword: string; newPassword: string };
-    await updatePassword(req.user!.userId, oldPassword, newPassword);
+    const result = await updatePassword(req.user!.userId, oldPassword, newPassword);
 
     res.json({
       status: 'ok',
       message: 'Password updated successfully',
-      data: null,
+      data: result,
     });
   } catch (error) {
     next(error);

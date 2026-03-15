@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { AppError } from '../middleware/errorHandler';
@@ -19,26 +20,58 @@ const JWT_SECRET = (() => {
 export interface JwtPayload {
   userId: string;
   email: string;
+  sessionStamp: string;
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function buildSessionStamp(passwordHash: string): string {
+  return createHash('sha256').update(passwordHash).digest('hex').slice(0, 16);
 }
 
 function signToken(payload: JwtPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
-export function verifyToken(token: string): JwtPayload {
+export async function verifyToken(token: string): Promise<JwtPayload> {
+  let decoded: JwtPayload;
+
   try {
-    return jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
+    decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] }) as JwtPayload;
   } catch {
     throw new AppError('Invalid or expired token', 401);
   }
+
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.userId },
+    select: { id: true, email: true, password: true },
+  });
+
+  if (!user) {
+    throw new AppError('Invalid or expired token', 401);
+  }
+
+  if (buildSessionStamp(user.password) !== decoded.sessionStamp) {
+    throw new AppError('Invalid or expired token', 401);
+  }
+
+  return {
+    userId: user.id,
+    email: user.email,
+    sessionStamp: decoded.sessionStamp,
+  };
 }
 
 /**
  * Register a new user. Returns the user + JWT token.
  */
 export async function register(email: string, password: string, name: string) {
+  const normalizedEmail = normalizeEmail(email);
+
   // Check if user already exists
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) {
     throw new AppError('Registration failed. Please try a different email.', 409);
   }
@@ -46,11 +79,15 @@ export async function register(email: string, password: string, name: string) {
   const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
   const user = await prisma.user.create({
-    data: { email, password: hashedPassword, name },
+    data: { email: normalizedEmail, password: hashedPassword, name: name.trim() },
     select: { id: true, email: true, name: true, createdAt: true },
   });
 
-  const token = signToken({ userId: user.id, email: user.email });
+  const token = signToken({
+    userId: user.id,
+    email: user.email,
+    sessionStamp: buildSessionStamp(hashedPassword),
+  });
 
   return { user, token };
 }
@@ -59,7 +96,8 @@ export async function register(email: string, password: string, name: string) {
  * Login with email + password. Returns the user + JWT token.
  */
 export async function login(email: string, password: string) {
-  const user = await prisma.user.findUnique({ where: { email } });
+  const normalizedEmail = normalizeEmail(email);
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user) {
     throw new AppError('Invalid email or password', 401);
   }
@@ -69,7 +107,11 @@ export async function login(email: string, password: string) {
     throw new AppError('Invalid email or password', 401);
   }
 
-  const token = signToken({ userId: user.id, email: user.email });
+  const token = signToken({
+    userId: user.id,
+    email: user.email,
+    sessionStamp: buildSessionStamp(user.password),
+  });
 
   return {
     user: { id: user.id, email: user.email, name: user.name, createdAt: user.createdAt },
@@ -96,7 +138,7 @@ export async function getProfile(userId: string) {
 export async function updateProfile(userId: string, name: string) {
   const user = await prisma.user.update({
     where: { id: userId },
-    data: { name },
+    data: { name: name.trim() },
     select: { id: true, email: true, name: true, createdAt: true },
   });
   return user;
@@ -120,5 +162,11 @@ export async function updatePassword(userId: string, oldPassword: string, newPas
     data: { password: hashedPassword },
   });
   
-  return true;
+  return {
+    token: signToken({
+      userId: user.id,
+      email: user.email,
+      sessionStamp: buildSessionStamp(hashedPassword),
+    }),
+  };
 }

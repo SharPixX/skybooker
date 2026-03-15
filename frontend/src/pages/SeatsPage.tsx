@@ -4,9 +4,9 @@ import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { isAxiosError } from 'axios';
 import { ArrowRight, Crown, Info, Loader2, Plane, ShieldCheck, Ticket } from 'lucide-react';
-import { bookSeat, getFlightById } from '../api';
-import { useAuth } from '../context/AuthContext';
-import { createMockBooking, getMockFlightById } from '../mockData';
+import { APP_MODE_DESCRIPTION, IS_DEMO_MODE, bookSeat, getFlightById } from '../api';
+import { useAuth } from '../context/useAuth';
+import { createMockBooking } from '../mockData';
 import type { Flight, Seat } from '../types';
 
 interface LayoutConfig {
@@ -81,13 +81,13 @@ export default function SeatsPage() {
       try {
         const data = await getFlightById(id);
         setFlight(data);
-      } catch {
-        const mockFlight = getMockFlightById(id);
-        if (mockFlight) {
-          setFlight(mockFlight);
-        } else {
-          setError('Не удалось загрузить схему салона.');
-        }
+      } catch (unknownError) {
+        const message = isAxiosError(unknownError)
+          ? unknownError.response?.data?.message
+          : unknownError instanceof Error
+            ? unknownError.message
+            : 'Не удалось загрузить схему салона.';
+        setError(message || 'Не удалось загрузить схему салона.');
       } finally {
         setLoading(false);
       }
@@ -410,6 +410,12 @@ export default function SeatsPage() {
                   Место и итог
                 </div>
               </div>
+
+              {IS_DEMO_MODE && (
+                <div className="mt-4 rounded-[20px] border border-white/12 bg-white/6 px-4 py-3 text-sm font-semibold text-white/78">
+                  {APP_MODE_DESCRIPTION}
+                </div>
+              )}
 
               <div className="air-divider my-5" />
 
