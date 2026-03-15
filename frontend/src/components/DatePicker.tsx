@@ -206,14 +206,12 @@ export function DatePicker({
 
   return (
     <>
-      <div ref={triggerRef} className="min-w-0">
-        <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-muted)]">
-          {label}
-        </label>
+      <div ref={triggerRef} className="air-input-group min-w-0">
+        <label className="air-input-label">{label}</label>
 
         <div
           onClick={() => setIsOpen((current) => !current)}
-          className="air-field flex min-h-[72px] cursor-pointer items-center gap-3 px-4"
+          className="air-field air-input-surface flex min-h-[72px] cursor-pointer items-center gap-3 px-4"
         >
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(79,130,255,0.1)] text-[var(--air-blue-deep)]">
             <CalendarDays className="h-5 w-5" />

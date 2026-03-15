@@ -105,12 +105,10 @@ export default function CityInput({
   const showEmptyState = showDropdown && !loading && hasResolvedQuery && suggestions.length === 0;
 
   return (
-    <div ref={rootRef} className="relative min-w-0">
-      <label className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-muted)]">
-        {label}
-      </label>
+    <div ref={rootRef} className="air-input-group relative min-w-0">
+      <label className="air-input-label">{label}</label>
 
-      <div className="air-field flex min-h-[72px] items-center gap-3 px-4">
+      <div className="air-field air-input-surface flex min-h-[72px] items-center gap-3 px-4">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(255,207,63,0.16)] text-[var(--air-ink)]">
           <Icon className="h-5 w-5" />
         </div>

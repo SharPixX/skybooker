@@ -1,5 +1,10 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, BadgeCheck, Clock3, LifeBuoy, Luggage, ShieldCheck, Ticket } from 'lucide-react';
+import { ArrowRight, BadgeCheck, LifeBuoy, Luggage, ShieldCheck, Ticket } from 'lucide-react';
+import dubaiPhoto from '../assets/destinations/dubai.jpg';
+import heroPlanePhoto from '../assets/hero/yandex-plane-hero.jpg';
+import kazanPhoto from '../assets/destinations/kazan.jpg';
+import saintPetersburgPhoto from '../assets/destinations/saint-petersburg.jpg';
+import sochiPhoto from '../assets/destinations/sochi.jpg';
 import BookingSearchPanel from '../components/BookingSearchPanel';
 
 const quickActions = [
@@ -30,10 +35,10 @@ const destinations = [
     price: 'от 5 490 ₽',
     subtitle: 'Короткий прямой маршрут к морю',
     params: 'from=Москва%20(SVO)&to=Сочи%20(AER)&date=2026-03-18&trip=oneway&passengers=1&cabin=economy',
-    style: {
-      background:
-        'linear-gradient(155deg, rgba(20,39,71,0.96), rgba(55,126,178,0.84) 54%, rgba(255,213,79,0.48))',
-    },
+    image: sochiPhoto,
+    imagePosition: 'center 62%',
+    overlay:
+      'linear-gradient(180deg, rgba(8,17,28,0.08) 0%, rgba(8,17,28,0.18) 30%, rgba(8,17,28,0.82) 100%), linear-gradient(145deg, rgba(23,83,142,0.44), rgba(255,213,121,0.18))',
   },
   {
     city: 'Санкт-Петербург',
@@ -41,10 +46,10 @@ const destinations = [
     price: 'от 7 802 ₽',
     subtitle: 'Деловой и городской маршрут на каждый день',
     params: 'from=Москва%20(DME)&to=Санкт-Петербург%20(LED)&date=2026-03-18&trip=oneway&passengers=1&cabin=comfort',
-    style: {
-      background:
-        'linear-gradient(155deg, rgba(30,32,57,0.98), rgba(78,112,180,0.86) 56%, rgba(255,255,255,0.3))',
-    },
+    image: saintPetersburgPhoto,
+    imagePosition: 'center 48%',
+    overlay:
+      'linear-gradient(180deg, rgba(9,18,31,0.12) 0%, rgba(9,18,31,0.2) 28%, rgba(9,18,31,0.84) 100%), linear-gradient(145deg, rgba(66,92,158,0.42), rgba(255,255,255,0.12))',
   },
   {
     city: 'Дубай',
@@ -52,10 +57,10 @@ const destinations = [
     price: 'от 12 500 ₽',
     subtitle: 'Прямой вылет без лишних пересадок',
     params: 'from=Москва%20(SVO)&to=Дубай%20(DXB)&date=2026-03-18&trip=oneway&passengers=1&cabin=business',
-    style: {
-      background:
-        'linear-gradient(155deg, rgba(31,23,63,0.98), rgba(81,70,164,0.82) 50%, rgba(255,170,90,0.6))',
-    },
+    image: dubaiPhoto,
+    imagePosition: 'center 56%',
+    overlay:
+      'linear-gradient(180deg, rgba(14,10,24,0.08) 0%, rgba(14,10,24,0.18) 28%, rgba(14,10,24,0.84) 100%), linear-gradient(145deg, rgba(82,66,149,0.44), rgba(255,183,103,0.2))',
   },
   {
     city: 'Казань',
@@ -63,10 +68,10 @@ const destinations = [
     price: 'от 5 400 ₽',
     subtitle: 'Короткий перелет на выходные',
     params: 'from=Москва%20(DME)&to=Казань%20(KZN)&date=2026-03-18&trip=oneway&passengers=1&cabin=economy',
-    style: {
-      background:
-        'linear-gradient(155deg, rgba(12,46,55,0.98), rgba(32,120,109,0.82) 52%, rgba(255,213,79,0.42))',
-    },
+    image: kazanPhoto,
+    imagePosition: 'center 58%',
+    overlay:
+      'linear-gradient(180deg, rgba(8,20,19,0.08) 0%, rgba(8,20,19,0.18) 28%, rgba(8,20,19,0.82) 100%), linear-gradient(145deg, rgba(28,117,106,0.42), rgba(255,222,118,0.18))',
   },
 ] as const;
 
@@ -110,61 +115,68 @@ export default function HomePage() {
   return (
     <div className="air-page">
       <div className="air-container">
-        <section id="search" className="air-dark-card overflow-hidden px-5 py-6 md:px-8 md:py-8">
-          <div className="air-fade-up">
-            <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
-              Yandex Air
-            </div>
-            <div className="mt-5 grid gap-6 xl:grid-cols-[0.78fr_1.22fr] xl:items-end">
-              <div>
-                <h1 className="max-w-3xl text-5xl font-extrabold leading-[0.92] tracking-[-0.07em] md:text-7xl">
-                  Билеты Yandex Air
-                  <span className="mt-2 block air-display">без лишних слов</span>
-                </h1>
-                <p className="mt-6 max-w-2xl text-sm leading-relaxed text-white/72 md:text-base">
-                  Спокойный airline-сервис, где поиск, тариф и следующий шаг читаются сразу, без перегруженных экранов.
-                </p>
+        <section
+          id="search"
+          className="air-dark-card relative min-h-[440px] overflow-hidden px-5 py-7 md:min-h-[520px] md:px-8 md:py-10 xl:min-h-[580px] xl:py-12"
+        >
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center opacity-[0.9]"
+            style={{
+              backgroundImage: `url(${heroPlanePhoto})`,
+              backgroundPosition: 'center 52%',
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0"
+            style={{
+              background: `
+                linear-gradient(90deg, rgba(13,24,41,0.96) 0%, rgba(13,24,41,0.92) 28%, rgba(13,24,41,0.58) 54%, rgba(13,24,41,0.82) 100%),
+                linear-gradient(180deg, rgba(8,16,29,0.1) 0%, rgba(8,16,29,0.46) 62%, rgba(8,16,29,0.86) 100%)
+              `,
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute -right-16 top-0 h-[340px] w-[340px] rounded-full blur-3xl"
+            style={{
+              background:
+                'radial-gradient(circle, rgba(255,210,88,0.34) 0%, rgba(255,210,88,0.16) 34%, rgba(255,210,88,0) 72%)',
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute bottom-[-120px] left-[-90px] h-[280px] w-[320px] rounded-full blur-3xl"
+            style={{
+              background:
+                'radial-gradient(circle, rgba(255,108,74,0.18) 0%, rgba(255,108,74,0.08) 32%, rgba(255,108,74,0) 72%)',
+            }}
+          />
+
+          <div className="relative z-10 flex min-h-[380px] flex-col justify-between air-fade-up md:min-h-[440px] xl:min-h-[500px]">
+            <div>
+              <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
+                Yandex Air
               </div>
 
-              <div className="flex flex-wrap gap-3 xl:justify-end">
-                <div className="air-dark-pill">
-                  <Clock3 className="h-4 w-4 text-[var(--air-yellow)]" />
-                  Быстрый путь от поиска до билета
-                </div>
-                <div className="air-dark-pill">
-                  <ShieldCheck className="h-4 w-4 text-[var(--air-yellow)]" />
-                  Тарифы понятны до оплаты
+              <div className="mt-5">
+                <div className="max-w-[700px]">
+                  <h1 className="max-w-3xl text-5xl font-extrabold leading-[0.92] tracking-[-0.07em] md:text-7xl">
+                    Билеты Yandex Air
+                    <span className="mt-2 block air-display">без лишних слов</span>
+                  </h1>
                 </div>
               </div>
             </div>
 
-            <div className="mt-8">
+            <div className="mt-12 xl:mt-16">
               <BookingSearchPanel />
             </div>
           </div>
         </section>
 
-        <section className="mt-8 grid gap-4 md:grid-cols-3">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-
-            return (
-              <Link key={action.title} to={action.to} className="air-link-card px-5 py-5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-[rgba(79,130,255,0.1)] text-[var(--air-blue-deep)]">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div className="mt-5 text-xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">{action.title}</div>
-                <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">{action.description}</div>
-                <div className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-[var(--air-ink)]">
-                  Открыть
-                  <ArrowRight className="h-4 w-4" />
-                </div>
-              </Link>
-            );
-          })}
-        </section>
-
-        <section id="destinations" className="mt-16">
+        <section id="destinations" className="mt-8">
           <div className="air-section-head">
             <div className="air-section-kicker">Направления</div>
             <h2 className="text-4xl font-extrabold tracking-[-0.05em] text-[var(--air-ink)] md:text-5xl">
@@ -178,26 +190,69 @@ export default function HomePage() {
               <Link
                 key={destination.city}
                 to={`/flights?${destination.params}`}
-                className="min-h-[300px] overflow-hidden rounded-[30px] p-5 text-white shadow-[0_28px_70px_rgba(17,24,39,0.18)] transition-transform duration-300 hover:-translate-y-[2px]"
-                style={destination.style}
+                className="group relative min-h-[320px] overflow-hidden rounded-[30px] border border-white/14 p-5 text-white shadow-[0_28px_70px_rgba(17,24,39,0.18)] transition-transform duration-500 hover:-translate-y-[4px]"
               >
-                <div className="flex h-full flex-col justify-between">
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-[1.05]"
+                  style={{
+                    backgroundImage: `url(${destination.image})`,
+                    backgroundPosition: destination.imagePosition,
+                  }}
+                />
+                <div aria-hidden="true" className="absolute inset-0" style={{ background: destination.overlay }} />
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(180deg,rgba(255,255,255,0.14),transparent)] opacity-80"
+                />
+
+                <div className="relative flex h-full flex-col justify-between">
                   <div>
-                    <div className="inline-flex rounded-full border border-white/16 bg-white/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white/84">
+                    <div className="inline-flex rounded-full border border-white/18 bg-white/12 px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.16em] text-white/92 backdrop-blur-sm">
                       {destination.route}
                     </div>
-                    <div className="mt-5 text-3xl font-extrabold tracking-[-0.05em]">{destination.city}</div>
-                    <div className="mt-3 max-w-[220px] text-sm leading-relaxed text-white/76">{destination.subtitle}</div>
+                    <div className="mt-5 text-3xl font-extrabold tracking-[-0.05em] text-white [text-shadow:0_10px_30px_rgba(8,17,28,0.38)]">
+                      {destination.city}
+                    </div>
+                    <div className="mt-3 max-w-[220px] text-sm leading-relaxed text-white/84 [text-shadow:0_8px_24px_rgba(8,17,28,0.34)]">
+                      {destination.subtitle}
+                    </div>
                   </div>
 
                   <div>
-                    <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/62">Билеты</div>
-                    <div className="mt-2 text-2xl font-extrabold">{destination.price}</div>
+                    <div className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-white/72">Билеты</div>
+                    <div className="mt-2 text-2xl font-extrabold text-white [text-shadow:0_10px_26px_rgba(8,17,28,0.35)]">
+                      {destination.price}
+                    </div>
                   </div>
                 </div>
               </Link>
             ))}
           </div>
+        </section>
+
+        <section className="mt-8 grid gap-4 md:grid-cols-3">
+          {quickActions.map((action) => {
+            const Icon = action.icon;
+
+            return (
+              <Link
+                key={action.title}
+                to={action.to}
+                className="group rounded-[26px] border border-white/40 bg-white/60 p-5 shadow-[0_8px_32px_rgba(16,24,38,0.08)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-[2px] hover:bg-white/80 hover:shadow-[0_12px_40px_rgba(16,24,38,0.12)]"
+              >
+                <div className="flex h-11 w-11 items-center justify-center rounded-[18px] border border-white/50 bg-white/70 text-[var(--air-blue-deep)] shadow-sm">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="mt-5 text-xl font-extrabold tracking-[-0.04em] text-[var(--air-ink)]">{action.title}</div>
+                <div className="mt-3 text-sm leading-relaxed text-[var(--air-muted)]">{action.description}</div>
+                <div className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-[var(--air-ink)] transition-transform group-hover:translate-x-1">
+                  Открыть
+                  <ArrowRight className="h-4 w-4" />
+                </div>
+              </Link>
+            );
+          })}
         </section>
 
         <section id="tariffs" className="mt-16">
@@ -215,10 +270,7 @@ export default function HomePage() {
 
               <div className="grid gap-4 lg:grid-cols-3">
                 {fareFamilies.map((fare, index) => (
-                  <div
-                    key={fare.title}
-                    className={index === 1 ? 'air-dark-card p-5 md:p-6' : 'air-soft-card p-5 md:p-6'}
-                  >
+                  <div key={fare.title} className={index === 1 ? 'air-dark-card p-5 md:p-6' : 'air-soft-card p-5 md:p-6'}>
                     <div
                       className="text-[11px] font-extrabold uppercase tracking-[0.18em]"
                       style={index === 1 ? { color: 'rgba(248,245,238,0.62)' } : { color: 'var(--air-muted)' }}
@@ -259,9 +311,7 @@ export default function HomePage() {
               <div className="air-section-kicker text-[rgba(248,245,238,0.72)] before:bg-[linear-gradient(90deg,var(--air-yellow),transparent)]">
                 Перед покупкой
               </div>
-              <h2 className="mt-4 text-4xl font-extrabold tracking-[-0.05em] md:text-5xl">
-                Что проверить перед покупкой
-              </h2>
+              <h2 className="mt-4 text-4xl font-extrabold tracking-[-0.05em] md:text-5xl">Что проверить перед покупкой</h2>
               <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/72 md:text-base">
                 Условия тарифа, нормы багажа и правила обмена должны быть видны заранее, а не после оплаты.
               </p>

@@ -151,6 +151,54 @@ textarea {
   box-shadow: 0 32px 90px rgba(16, 24, 38, 0.22);
 }
 
+.air-brand-mark {
+  position: relative;
+  width: 72px;
+  height: 48px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.12)),
+    rgba(21, 36, 58, 0.38);
+  box-shadow:
+    0 18px 38px rgba(16, 24, 38, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(14px);
+}
+
+.air-brand-mark-image,
+.air-brand-mark-gloss,
+.air-brand-mark-rim {
+  position: absolute;
+  inset: 0;
+}
+
+.air-brand-mark-image {
+  inset: 2px;
+  border-radius: 18px;
+  background-position: 50% 19%;
+  background-repeat: no-repeat;
+  background-size: 178% auto;
+  filter: saturate(1.08) contrast(1.04);
+}
+
+.air-brand-mark-gloss {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0.08) 42%, rgba(255, 255, 255, 0) 72%),
+    linear-gradient(115deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 42%);
+  mix-blend-mode: screen;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.air-brand-mark-rim {
+  inset: 1px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 19px;
+  pointer-events: none;
+}
+
 .air-section-kicker {
   display: inline-flex;
   align-items: center;
@@ -245,6 +293,21 @@ textarea {
   font-weight: 700;
 }
 
+.air-input-group {
+  min-width: 0;
+}
+
+.air-input-label {
+  display: block;
+  margin-bottom: 0.7rem;
+  padding: 0 0.15rem;
+  color: var(--air-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
 .air-field {
   border: 1px solid var(--air-border);
   border-radius: 22px;
@@ -257,6 +320,144 @@ textarea {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.6),
     0 0 0 4px rgba(79, 130, 255, 0.08);
+}
+
+.air-input-surface {
+  min-height: 72px;
+}
+
+.air-search-panel-hero {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 36px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 245, 238, 0.94)),
+    radial-gradient(circle at top left, rgba(255, 207, 63, 0.12), transparent 28%);
+  box-shadow:
+    0 30px 90px rgba(9, 15, 26, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(18px);
+}
+
+.air-search-toggle {
+  display: inline-flex;
+  width: fit-content;
+  padding: 0.35rem;
+  border: 1px solid rgba(16, 24, 38, 0.1);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(241, 236, 228, 0.98), rgba(234, 229, 220, 0.86));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.78),
+    0 10px 24px rgba(16, 24, 38, 0.06);
+}
+
+.air-search-toggle-button {
+  padding: 0.88rem 1.35rem;
+  border-radius: 999px;
+  color: var(--air-muted-strong);
+  font-size: 1rem;
+  font-weight: 800;
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.22s ease;
+}
+
+.air-search-toggle-button[data-active="true"] {
+  background: linear-gradient(180deg, rgba(21, 36, 58, 1), rgba(16, 26, 42, 1));
+  color: #f8f5ee;
+  box-shadow: 0 14px 30px rgba(16, 24, 38, 0.18);
+}
+
+.air-search-assurance {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: fit-content;
+  border: 1px solid rgba(16, 24, 38, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.8rem 1.1rem;
+  color: var(--air-ink-soft);
+  font-size: 0.95rem;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.76);
+}
+
+.air-search-bar {
+  border: 1px solid rgba(16, 24, 38, 0.08);
+  border-radius: 30px;
+  background:
+    linear-gradient(180deg, rgba(251, 249, 245, 0.98), rgba(244, 240, 233, 0.95)),
+    radial-gradient(circle at top right, rgba(79, 130, 255, 0.06), transparent 24%);
+  padding: 0.75rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 16px 38px rgba(16, 24, 38, 0.06);
+}
+
+.air-search-panel-hero .air-input-label {
+  margin-bottom: 0.75rem;
+  color: #69758c;
+}
+
+.air-search-panel-hero .air-input-surface {
+  border-color: rgba(16, 24, 38, 0.1);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 243, 236, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.84),
+    0 10px 26px rgba(16, 24, 38, 0.05);
+}
+
+.air-search-panel-hero .air-input-surface:focus-within {
+  border-color: rgba(41, 80, 215, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 0 0 4px rgba(79, 130, 255, 0.08),
+    0 16px 34px rgba(79, 130, 255, 0.08);
+}
+
+.air-search-panel-hero input,
+.air-search-panel-hero select {
+  color: var(--air-ink);
+  font-weight: 700;
+}
+
+.air-search-swap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  align-self: flex-end;
+  border: 1px solid rgba(16, 24, 38, 0.1);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(244, 239, 231, 0.92));
+  color: var(--air-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 10px 24px rgba(16, 24, 38, 0.06);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.air-search-swap:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 16px 32px rgba(16, 24, 38, 0.08);
+}
+
+.air-search-submit {
+  min-height: 72px;
+  height: 72px;
+  border-radius: 24px;
+  box-shadow:
+    0 18px 42px rgba(242, 179, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38);
 }
 
 .air-divider {
@@ -397,6 +598,29 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   .air-surface-card-strong,
   .air-dark-card {
     border-radius: 26px;
+  }
+
+  .air-search-panel-hero {
+    border-radius: 28px;
+  }
+
+  .air-search-bar {
+    border-radius: 24px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .air-search-toggle-button {
+    font-size: 0.94rem;
+  }
+
+  .air-search-assurance {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.86rem;
   }
 }
 

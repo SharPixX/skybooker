@@ -29,9 +29,9 @@ function SelectField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block min-w-0">
-      <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.18em] text-[var(--air-muted)]">{label}</div>
-      <div className="air-field flex min-h-[72px] items-center px-4">
+    <label className="air-input-group block min-w-0">
+      <div className="air-input-label">{label}</div>
+      <div className="air-field air-input-surface flex min-h-[72px] items-center px-4">
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -106,36 +106,29 @@ export default function BookingSearchPanel({
 
   if (!isCompact) {
     return (
-      <form
-        onSubmit={handleSubmit}
-        className="w-full rounded-[34px] border border-white/14 bg-[rgba(255,255,255,0.96)] p-4 shadow-[0_30px_90px_rgba(16,24,38,0.22)] md:p-5"
-      >
-        <div className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="air-search-panel-hero w-full p-4 md:p-5">
+        <div className="flex flex-col gap-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="inline-flex w-fit rounded-full border border-[var(--air-border)] bg-[rgba(16,24,38,0.04)] p-1">
+            <div className="air-search-toggle">
               <button
                 type="button"
                 onClick={() => setTripType('oneway')}
-                className={[
-                  'rounded-full px-4 py-2 text-sm font-extrabold transition-colors',
-                  tripType === 'oneway' ? 'bg-[var(--air-panel)] text-white' : 'text-[var(--air-muted-strong)]',
-                ].join(' ')}
+                data-active={tripType === 'oneway'}
+                className="air-search-toggle-button"
               >
                 В одну сторону
               </button>
               <button
                 type="button"
                 onClick={() => setTripType('roundtrip')}
-                className={[
-                  'rounded-full px-4 py-2 text-sm font-extrabold transition-colors',
-                  tripType === 'roundtrip' ? 'bg-[var(--air-panel)] text-white' : 'text-[var(--air-muted-strong)]',
-                ].join(' ')}
+                data-active={tripType === 'roundtrip'}
+                className="air-search-toggle-button"
               >
                 Туда и обратно
               </button>
             </div>
 
-            <div className="air-pill bg-[rgba(16,24,38,0.03)]">
+            <div className="air-search-assurance">
               <ShieldCheck className="h-4 w-4 text-[var(--air-emerald)]" />
               Прозрачные тарифы и правила до оплаты
             </div>
@@ -143,10 +136,10 @@ export default function BookingSearchPanel({
 
           <div
             className={[
-              'grid gap-3',
+              'air-search-bar grid gap-3 xl:items-end',
               tripType === 'roundtrip'
-                ? 'xl:grid-cols-[1.25fr_auto_1.25fr_0.95fr_0.95fr_0.82fr_0.82fr_auto]'
-                : 'xl:grid-cols-[1.35fr_auto_1.35fr_1fr_0.82fr_0.82fr_auto]',
+                ? 'xl:grid-cols-[minmax(0,1.46fr)_56px_minmax(0,1.46fr)_minmax(0,1.18fr)_minmax(0,1.18fr)_minmax(0,0.92fr)_minmax(0,0.92fr)_188px]'
+                : 'xl:grid-cols-[minmax(0,1.52fr)_56px_minmax(0,1.52fr)_minmax(0,1.24fr)_minmax(0,0.94fr)_minmax(0,0.94fr)_188px]',
             ].join(' ')}
           >
             <CityInput
@@ -157,7 +150,8 @@ export default function BookingSearchPanel({
               type="from"
             />
 
-            <div className="flex items-end justify-center pb-1">
+            <div className="flex min-w-0 flex-col justify-end">
+              <div aria-hidden="true" className="hidden h-[34px] xl:block" />
               <button
                 type="button"
                 onClick={() => {
@@ -165,7 +159,7 @@ export default function BookingSearchPanel({
                   setFrom(to);
                   setTo(currentFrom);
                 }}
-                className="flex h-12 w-12 items-center justify-center rounded-full border border-[var(--air-border)] bg-[rgba(255,255,255,0.86)] text-[var(--air-ink)] transition-colors hover:bg-white"
+                className="air-search-swap"
                 aria-label="Поменять местами направления"
               >
                 <ArrowLeftRight className="h-4 w-4" />
@@ -210,8 +204,9 @@ export default function BookingSearchPanel({
               <option value="business">Бизнес</option>
             </SelectField>
 
-            <div className="flex items-end">
-              <button type="submit" className="air-primary-button h-[72px] w-full min-w-[180px] px-6">
+            <div className="flex min-w-0 flex-col justify-end">
+              <div aria-hidden="true" className="hidden h-[34px] xl:block" />
+              <button type="submit" className="air-primary-button air-search-submit w-full min-w-[180px] px-6">
                 <Search className="h-4 w-4" />
                 Найти рейсы
               </button>

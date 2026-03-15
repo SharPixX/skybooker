@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { LogIn, Search, UserCircle2 } from 'lucide-react';
 import { APP_MODE_DESCRIPTION, IS_DEMO_MODE } from '../api';
+import headerMark from '../assets/branding/header-logo-optimized.jpg';
 import { useAuth } from '../context/useAuth';
 
 const mainLinks = [
@@ -46,11 +47,11 @@ export default function Header() {
       </div>
 
       <div className="air-container flex min-h-[76px] items-center justify-between gap-6 py-3">
-        <Link to="/" className="flex items-center gap-3">
-          <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-[18px] bg-[var(--air-panel)] text-white shadow-[0_18px_38px_rgba(16,24,38,0.22)]">
-            <div className="absolute inset-y-0 right-0 w-1/2 bg-[var(--air-yellow)]" />
-            <span className="relative text-lg font-extrabold tracking-[-0.04em] text-[var(--air-panel)]">A</span>
-            <span className="relative -ml-1 text-lg font-extrabold tracking-[-0.04em] text-white">Y</span>
+        <Link to="/" className="flex items-center gap-3.5">
+          <div className="air-brand-mark">
+            <div className="air-brand-mark-image" style={{ backgroundImage: `url(${headerMark})` }} />
+            <div aria-hidden="true" className="air-brand-mark-gloss" />
+            <div aria-hidden="true" className="air-brand-mark-rim" />
           </div>
 
           <div className="leading-none">
@@ -116,17 +117,17 @@ export default function Header() {
           {isAuthenticated ? (
             <Link
               to="/profile"
-              className="flex h-11 items-center gap-2 rounded-full bg-[var(--air-panel)] px-4 text-sm font-bold text-white shadow-[0_18px_38px_rgba(16,24,38,0.18)] transition-transform hover:-translate-y-[1px]"
+              className="flex h-11 items-center gap-2 rounded-full border border-white/30 bg-white/40 px-4 text-sm font-bold text-[var(--air-ink)] backdrop-blur-sm transition-transform hover:-translate-y-[1px] hover:bg-white/60"
             >
-              <UserCircle2 className="h-4 w-4 text-[var(--air-yellow)]" />
+              <UserCircle2 className="h-4 w-4 text-[var(--air-ink)]" />
               <span className="hidden sm:inline">{user?.name || 'Профиль'}</span>
             </Link>
           ) : (
             <Link
               to="/auth"
-              className="flex h-11 items-center gap-2 rounded-full bg-[var(--air-panel)] px-4 text-sm font-bold text-white shadow-[0_18px_38px_rgba(16,24,38,0.18)] transition-transform hover:-translate-y-[1px]"
+              className="flex h-11 items-center gap-2 rounded-full border border-white/30 bg-white/40 px-4 text-sm font-bold text-[var(--air-ink)] backdrop-blur-sm transition-transform hover:-translate-y-[1px] hover:bg-white/60"
             >
-              <LogIn className="h-4 w-4 text-[var(--air-yellow)]" />
+              <LogIn className="h-4 w-4 text-[var(--air-ink)]" />
               Войти
             </Link>
           )}
